@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Administración · Reservas</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../estilos.css">
+  <style>
+    .contenedor { max-width: 900px; }
+    .barra { display: flex; align-items: center; gap: 12px; padding: 18px; max-width: 900px; margin: 0 auto; }
+    .barra h1 { font-size: 1.5rem; flex: 1; }
+    .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+    .tab { border: 1.5px solid var(--linea); background: #fff; border-radius: 99px; padding: 8px 15px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    .tab.sel { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+    .tab .badge { background: var(--acento); color: #fff; border-radius: 99px; font-size: .72rem; padding: 1px 7px; margin-left: 4px; }
+    .nav-dia { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .nav-dia input { width: auto; }
+    .nav-dia .tit { font-weight: 700; flex: 1; min-width: 180px; }
+    .reserva { border: 1px solid var(--linea); border-radius: 12px; padding: 12px 14px; background: #fff; display: grid; grid-template-columns: 70px 1fr auto; gap: 4px 12px; align-items: start; }
+    .reserva + .reserva { margin-top: 8px; }
+    .reserva .hr { font-weight: 700; font-size: 1.1rem; }
+    .reserva .hr small { display: block; font-weight: 400; color: var(--suave); font-size: .8rem; }
+    .reserva .info .n { font-weight: 600; }
+    .reserva .info .s { color: var(--suave); font-size: .9rem; }
+    .reserva .info .c { font-size: .85rem; margin-top: 3px; }
+    .reserva .btns { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .reserva.apagada { opacity: .55; }
+    .reserva .lado { text-align: right; }
+    .reserva .lado .p { font-weight: 700; margin-top: 4px; }
+    .nota { font-size: .85rem; background: var(--fondo); border-radius: 8px; padding: 6px 9px; margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: .78rem; text-transform: uppercase; letter-spacing: .5px; color: var(--suave); padding: 6px 6px; }
+    td { padding: 5px 6px; vertical-align: middle; }
+    td input[type=time] { min-width: 100px; }
+    .grid-serv { display: grid; gap: 12px; }
+    .serv-ed { border: 1px solid var(--linea); border-radius: 12px; padding: 14px; background: #fff; }
+    .serv-ed .fila2 { display: grid; grid-template-columns: 2fr 1fr 1fr 70px; gap: 10px; }
+    .serv-ed label { margin-top: 8px; }
+    .serv-ed .pie-ed { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .serv-ed .pie-ed .esp { flex: 1; }
+    .check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; margin: 0; cursor: pointer; }
+    .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-fondo { position: fixed; inset: 0; background: rgba(34,28,24,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
+    .modal { background: var(--papel); border-radius: 16px; padding: 22px; width: 100%; max-width: 460px; max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+    .modal h3 { font-size: 1.35rem; margin-bottom: 6px; }
+    .opciones label { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; border: 1.5px solid var(--linea); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+    .opciones label + label { margin-top: 8px; }
+    .opciones input { margin-top: 4px; }
+    .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--tinta); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 60; font-size: .92rem; }
+    @media (max-width: 600px) {
+      .reserva { grid-template-columns: 54px 1fr; }
+      .reserva .lado { grid-column: 2; text-align: left; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .reserva .lado .p { margin: 0; }
+      .reserva .lado > div { display: inline; }
+      .nav-dia .tit { order: 5; flex-basis: 100%; }
+      .serv-ed .fila2 { grid-template-columns: 1fr 1fr; }
+      .dos { grid-template-columns: 1fr; }
+      .horario-tabla th:nth-child(4), .horario-tabla th:nth-child(5) { display: none; }
+      .horario-tabla td { display: block; padding: 3px 0; }
+      .horario-tabla tr { display: block; border-bottom: 1px solid var(--linea); padding: 8px 0; }
+      .horario-tabla thead { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Login -->
+  <main id="vLogin" class="contenedor oculto" style="max-width:420px;padding-top:60px">
+    <div class="tarjeta">
+      <h2>Administración</h2>
+      <p class="ayuda">Ingresa con tu cuenta</p>
+      <label for="lgEmail">Correo</label>
+      <input type="email" id="lgEmail" autocomplete="username">
+      <label for="lgPass">Contraseña</label>
+      <input type="password" id="lgPass" autocomplete="current-password">
+      <div id="lgError" class="aviso error oculto"></div>
+      <div class="acciones"><button class="btn" id="btnLogin">Entrar</button></div>
+    </div>
+  </main>
+
+  <!-- App -->
+  <div id="vApp" class="oculto">
+    <div class="barra">
+      <h1 id="tituloAdmin">Administración</h1>
+      <a class="btn claro chico" href="/" target="_blank">Ver página</a>
+      <button class="btn claro chico" id="btnSalir">Salir</button>
+    </div>
+    <main class="contenedor">
+      <div class="tabs" id="tabs">
+        <button class="tab sel" data-t="agenda">Agenda <span class="badge oculto" id="badgeRevisar"></span></button>
+        <button class="tab" data-t="servicios">Servicios</button>
+        <button class="tab" data-t="horario">Horario</button>
+        <button class="tab" data-t="bloqueos">Días bloqueados</button>
+        <button class="tab" data-t="ajustes">Ajustes</button>
+      </div>
+
+      <!-- AGENDA -->
+      <section id="t-agenda">
+        <div id="cajaRevisar" class="tarjeta oculto" style="border-color:#bcd0f0">
+          <h2>Por revisar</h2>
+          <p class="ayuda">Pagos informados por clientes (compara el código con el aviso de Transbank y confirma) y reembolsos pendientes.</p>
+          <div id="listaRevisar"></div>
+        </div>
+        <div class="tarjeta">
+          <div class="nav-dia">
+            <button class="btn claro chico" id="diaAnt">‹</button>
+            <input type="date" id="diaSel">
+            <button class="btn claro chico" id="diaSig">›</button>
+            <button class="btn claro chico" id="diaHoy">Hoy</button>
+            <span class="tit" id="diaTitulo"></span>
+            <button class="btn acento chico" id="btnNuevaReserva">+ Reserva manual</button>
+          </div>
+          <label class="check" style="margin-bottom:10px"><input type="checkbox" id="verOcultas"> Mostrar canceladas y vencidas</label>
+          <div id="listaDia"></div>
+        </div>
+      </section>
+
+      <!-- SERVICIOS -->
+      <section id="t-servicios" class="oculto">
+        <div class="tarjeta">
+          <h2>Servicios</h2>
+          <p class="ayuda">Nombre, duración y precio de cada servicio. Si activas el cobro online (en Ajustes), cada servicio necesita su <b>link de Webpay</b> con el mismo precio, creado en <a href="https://www.webpay.cl" target="_blank" rel="noopener">webpay.cl</a> como producto de precio fijo.</p>
+          <div class="grid-serv" id="listaServ"></div>
+          <div class="acciones"><button class="btn claro" id="btnAddServ">+ Agregar servicio</button></div>
+        </div>
+      </section>
+
+      <!-- HORARIO -->
+      <section id="t-horario" class="oculto">
+        <div class="tarjeta">
+          <h2>Horario de atención</h2>
+          <p class="ayuda">La colación es opcional: déjala en blanco si no hay pausa.</p>
+          <table class="horario-tabla">
+            <thead><tr><th>Día</th><th>Abre</th><th>Cierra</th><th>Colación desde</th><th>Colación hasta</th></tr></thead>
+            <tbody id="tablaHorario"></tbody>
+          </table>
+          <div class="acciones"><button class="btn" id="btnGuardarHorario">Guardar horario</button></div>
+        </div>
+      </section>
+
+      <!-- BLOQUEOS -->
+      <section id="t-bloqueos" class="oculto">
+        <div class="tarjeta">
+          <h2>Bloquear días u horas</h2>
+          <p class="ayuda">Vacaciones, feriados o trámites. Las reservas ya hechas no se borran: revísalas en la agenda.</p>
+          <div class="dos">
+            <div><label for="blFecha">Desde</label><input type="date" id="blFecha"></div>
+            <div><label for="blFechaHasta">Hasta <span class="opc">(opcional, para varios días)</span></label><input type="date" id="blFechaHasta"></div>
+          </div>
+          <label class="check" style="margin-top:12px"><input type="checkbox" id="blCompleto" checked> Día completo</label>
+          <div class="dos oculto" id="blHoras">
+            <div><label for="blIni">Desde la hora</label><input type="time" id="blIni" step="900"></div>
+            <div><label for="blFin">Hasta la hora</label><input type="time" id="blFin" step="900"></div>
+          </div>
+          <label for="blMotivo">Motivo <span class="opc">(solo lo ves tú)</span></label>
+          <input type="text" id="blMotivo" maxlength="80">
+          <div class="acciones"><button class="btn" id="btnAddBloqueo">Bloquear</button></div>
+        </div>
+        <div class="tarjeta"><h2>Próximos bloqueos</h2><div id="listaBloqueos" style="margin-top:10px"></div></div>
+      </section>
+
+      <!-- AJUSTES -->
+      <section id="t-ajustes" class="oculto">
+        <div class="tarjeta">
+          <h2>Ajustes</h2>
+          <label for="ajNombre">Nombre de la peluquería</label><input type="text" id="ajNombre" maxlength="60">
+          <label for="ajDir">Dirección</label><input type="text" id="ajDir" maxlength="120">
+          <label for="ajWsp">WhatsApp del local</label><input type="tel" id="ajWsp" placeholder="9 1234 5678" maxlength="20">
+          <div class="dos">
+            <div><label for="ajBloqueo">Minutos para pagar</label><input type="number" id="ajBloqueo" min="5" max="120"></div>
+            <div><label for="ajIntervalo">Horas cada (minutos)</label>
+              <select id="ajIntervalo"><option>15</option><option>20</option><option>30</option><option>45</option><option>60</option></select></div>
+            <div><label for="ajAnticipacion">Anticipación mínima (minutos)</label><input type="number" id="ajAnticipacion" min="0" max="2880"></div>
+            <div><label for="ajDias">Reservar hasta (días adelante)</label><input type="number" id="ajDias" min="1" max="120"></div>
+          </div>
+          <label class="check" style="margin-top:16px"><input type="checkbox" id="ajCobrar"> Cobrar al reservar con Webpay</label>
+          <p class="ayuda" style="margin:4px 0 0">Apagado: el cliente solo reserva la hora y paga en el local. Encendido: debe pagar con el link de Webpay de cada servicio para asegurar la hora.</p>
+          <label for="ajPolitica">Política de cancelación (la ve el cliente)</label><textarea id="ajPolitica" maxlength="500"></textarea>
+          <div class="acciones"><button class="btn" id="btnGuardarAjustes">Guardar ajustes</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal-fondo oculto"><div class="modal" id="modalCuerpo"></div></div>
+  <div id="toast" class="toast oculto"></div>
+
+  <script src="../api.js"></script>
+    <script src="../comun.js"></script>
+  <script>
+  (function () {
+    const $ = (id) => document.getElementById(id);
+    const db = U.cliente();
+    const S = { ajustes: null, servicios: [], horario: [], bloqueos: [], dia: U.ahoraCL().fecha };
+    const ETQ = { pendiente_pago: 'Pendiente de pago', pago_informado: 'Pago por revisar', confirmada: 'Confirmada', cancelada: 'Cancelada', vencida: 'Vencida' };
+    const ETQ_REEMB = { pendiente: 'Reembolso pendiente', realizado: 'Reembolso realizado', sin_reembolso: 'Sin reembolso' };
+
+    function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.remove('oculto'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('oculto'), 2600); }
+    function fallo(e) { console.error(e); toast('Error: ' + ((e && e.message) || 'no se pudo guardar')); }
+    const estadoReal = (r) => r.estado === 'pendiente_pago' && new Date(r.expira_en) <= new Date() ? 'vencida' : r.estado;
+    const nuevoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
+
+    function abrirModal(html) { $('modalCuerpo').innerHTML = html; $('modal').classList.remove('oculto'); }
+    function cerrarModal() { $('modal').classList.add('oculto'); $('modalCuerpo').innerHTML = ''; }
+    $('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') cerrarModal(); });
+
+    // ---------- Sesión ----------
+    async function iniciar() {
+      const { data: { session } } = await db.auth.getSession();
+      if (!session) return verLogin();
+      const { data, error } = await db.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle();
+      if (error || !data) { await db.auth.signOut(); return verLogin('Esta cuenta no tiene permisos de administrador.'); }
+      $('vLogin').classList.add('oculto'); $('vApp').classList.remove('oculto');
+      await cargarConfig();
+      $('diaSel').value = S.dia;
+      await cargarAgenda();
+    }
+    function verLogin(msg) {
+      $('vApp').classList.add('oculto'); $('vLogin').classList.remove('oculto');
+      const e = $('lgError'); e.textContent = msg || ''; e.classList.toggle('oculto', !msg);
+    }
+    $('btnLogin').onclick = async () => {
+      const b = $('btnLogin'); b.disabled = true;
+      const { error } = await db.auth.signInWithPassword({ email: $('lgEmail').value.trim(), password: $('lgPass').value });
+      b.disabled = false;
+      if (error) return verLogin('Correo o contraseña incorrectos.');
+      iniciar();
+    };
+    $('lgPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnLogin').click(); });
+    $('btnSalir').onclick = async () => { await db.auth.signOut(); verLogin(); };
+
+    // ---------- Pestañas ----------
+    document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.toggle('sel', x === t));
+      ['agenda', 'servicios', 'horario', 'bloqueos', 'ajustes'].forEach(n => $('t-' + n).classList.toggle('oculto', n !== t.dataset.t));
+      ({ agenda: cargarAgenda, servicios: pintarServicios, horario: pintarHorario, bloqueos: pintarBloqueos, ajustes: pintarAjustes })[t.dataset.t]();
+    });
+
+    async function cargarConfig() {
+      const [a, s, h, b] = await Promise.all([
+        db.from('ajustes').select('*').eq('id', 1).single(),
+        db.from('servicios').select('*').order('orden').order('id'),
+        db.from('horario').select('*').order('dia'),
+        db.from('bloqueos').select('*').gte('fecha', U.ahoraCL().fecha).order('fecha')
+      ]);
+      for (const r of [a, s, h, b]) if (r.error) return fallo(r.error);
+      S.ajustes = a.data; S.servicios = s.data; S.horario = h.data; S.bloqueos = b.data;
+      $('tituloAdmin').textContent = S.ajustes.nombre;
+    }
+
+    // ---------- Agenda ----------
+    function tarjetaReserva(r, conFecha) {
+      const est = estadoReal(r);
+      const apagada = est === 'cancelada' || est === 'vencida';
+      const tel = U.esc(r.cliente_telefono);
+      const btns = [];
+      if (est === 'pago_informado' || est === 'pendiente_pago' || est === 'vencida') btns.push(`<button class="btn verde chico" data-acc="confirmar" data-id="${r.id}">Confirmar pago</button>`);
+      if (est === 'confirmada') btns.push(`<a class="btn claro chico" target="_blank" rel="noopener" href="${mensajeConfirmacion(r)}">Enviar confirmación WhatsApp</a>`);
+      if (est !== 'cancelada') btns.push(`<button class="btn claro chico" data-acc="cancelar" data-id="${r.id}">Cancelar</button>`);
+      if (r.reembolso === 'pendiente') btns.push(`<button class="btn claro chico" data-acc="reembolsado" data-id="${r.id}">Marcar reembolso hecho</button>`);
+      btns.push(`<a class="btn claro chico" target="_blank" rel="noopener" href="${U.linkWhatsapp(r.cliente_telefono, 'Hola ' + r.cliente_nombre.split(' ')[0] + ', ')}">WhatsApp</a>`);
+      btns.push(`<button class="btn claro chico" data-acc="nota" data-id="${r.id}">Nota</button>`);
+      return `<div class="reserva ${apagada ? 'apagada' : ''}">
+        <div class="hr">${U.hhmm(r.hora_inicio)}<small>${U.hhmm(r.hora_fin)}</small></div>
+        <div class="info">
+          <div class="n">${U.esc(r.cliente_nombre)}</div>
+          <div class="s">${U.esc(r.servicio_nombre)}${conFecha ? ' · ' + U.fechaLarga(r.fecha) : ''}</div>
+          <div class="c">${tel}${r.cliente_email ? ' · ' + U.esc(r.cliente_email) : ''} · Código <b>${U.esc(r.codigo)}</b>${r.origen === 'admin' ? ' · manual' : ''}</div>
+          ${r.comprobante ? `<div class="c">Comprobante informado: <b>${U.esc(r.comprobante)}</b></div>` : ''}
+          ${r.nota_admin ? `<div class="nota">${U.esc(r.nota_admin)}</div>` : ''}
+        </div>
+        <div class="lado"><span class="chip ${est}">${ETQ[est]}</span>
+          ${r.reembolso !== 'no_aplica' ? `<div><span class="chip ${r.reembolso === 'pendiente' ? 'conflicto' : 'cancelada'}" style="margin-top:4px">${ETQ_REEMB[r.reembolso]}</span></div>` : ''}
+          <div class="p">${U.clp(r.precio)}</div></div>
+        <div class="btns">${btns.join('')}</div>
+      </div>`;
+    }
+
+    function mensajeConfirmacion(r) {
+      const local = S.ajustes.nombre + (S.ajustes.direccion ? ' (' + S.ajustes.direccion + ')' : '');
+      return U.linkWhatsapp(r.cliente_telefono,
+        `Hola ${r.cliente_nombre.split(' ')[0]}, ${r.comprobante ? 'tu pago fue recibido y ' : ''}tu hora quedó confirmada ✅\n\n` +
+        `${r.servicio_nombre}\n${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}\n${local}\nCódigo: ${r.codigo}\n\n¡Te esperamos!`);
+    }
+
+    let RESERVAS = {};
+    async function cargarAgenda() {
+      const hoy = U.ahoraCL().fecha;
+      $('diaTitulo').textContent = U.fechaLarga(S.dia) + (S.dia === hoy ? ' (hoy)' : '');
+      const [dia, rev] = await Promise.all([
+        db.from('reservas').select('*').eq('fecha', S.dia).order('hora_inicio'),
+        db.from('reservas').select('*').or('estado.eq.pago_informado,reembolso.eq.pendiente').gte('fecha', U.sumarDias(hoy, -60)).order('fecha').order('hora_inicio')
+      ]);
+      if (dia.error) return fallo(dia.error);
+      if (rev.error) return fallo(rev.error);
+      RESERVAS = {};
+      [...dia.data, ...rev.data].forEach(r => RESERVAS[r.id] = r);
+
+      const porRevisar = rev.data;
+      $('cajaRevisar').classList.toggle('oculto', !porRevisar.length);
+      $('badgeRevisar').classList.toggle('oculto', !porRevisar.length);
+      $('badgeRevisar').textContent = porRevisar.length;
+      $('listaRevisar').innerHTML = porRevisar.map(r => tarjetaReserva(r, true)).join('');
+
+      const ver = $('verOcultas').checked;
+      const lista = dia.data.filter(r => ver || !['cancelada', 'vencida'].includes(estadoReal(r)));
+      const h = S.horario.find(x => x.dia === U.diaSemana(S.dia));
+      const bloq = S.bloqueos.filter(b => b.fecha === S.dia);
+      let cab = '';
+      if (h && !h.abierto) cab += '<div class="aviso atencion">Día sin atención según el horario.</div>';
+      bloq.forEach(b => cab += `<div class="aviso atencion">Bloqueado ${b.hora_inicio ? U.hhmm(b.hora_inicio) + '–' + U.hhmm(b.hora_fin) : 'todo el día'}${b.motivo ? ': ' + U.esc(b.motivo) : ''}</div>`);
+      const total = dia.data.filter(r => estadoReal(r) === 'confirmada').reduce((a, r) => a + r.precio, 0);
+      $('listaDia').innerHTML = cab + (lista.length ? lista.map(r => tarjetaReserva(r)).join('') : '<div class="vacio">Sin reservas este día.</div>') +
+        (total ? `<p class="ayuda" style="text-align:right;margin-top:12px">Total confirmado del día: <b>${U.clp(total)}</b></p>` : '');
+    }
+
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-acc]'); if (!b) return;
+      const r = RESERVAS[b.dataset.id]; if (!r) return;
+      const acc = b.dataset.acc;
+      if (acc === 'confirmar') return modalConfirmar(r);
+      if (acc === 'cancelar') return modalCancelar(r);
+      if (acc === 'nota') return modalNota(r);
+      if (acc === 'reembolsado') {
+        const { error } = await db.from('reservas').update({ reembolso: 'realizado' }).eq('id', r.id);
+        if (error) return fallo(error); toast('Reembolso marcado como realizado'); cargarAgenda();
+      }
+    });
+
+    function modalConfirmar(r) {
+      abrirModal(`<h3>Confirmar pago</h3>
+        <p class="ayuda">Revisa en el correo de Transbank o en webpay.cl que exista un pago de <b>${U.clp(r.precio)}</b>${r.comprobante ? ' con el código <b>' + U.esc(r.comprobante) + '</b>' : ''}.</p>
+        <div class="resumen"><div class="fila"><span>Cliente</span><span>${U.esc(r.cliente_nombre)}</span></div>
+          <div class="fila"><span>Servicio</span><span>${U.esc(r.servicio_nombre)}</span></div>
+          <div class="fila"><span>Cuándo</span><span>${U.fechaLarga(r.fecha)} ${U.hhmm(r.hora_inicio)}</span></div></div>
+        ${estadoReal(r) === 'vencida' ? '<div class="aviso atencion">Esta reserva venció sin aviso de pago. Confírmala solo si encontraste el pago y la hora sigue libre.</div>' : ''}
+        <div class="acciones"><button class="btn claro" id="mCancel">Volver</button><button class="btn verde" id="mOk">Sí, confirmar</button></div>`);
+      $('mCancel').onclick = cerrarModal;
+      $('mOk').onclick = async () => {
+        const { error } = await db.from('reservas').update({ estado: 'confirmada' }).eq('id', r.id);
+        if (error) return fallo(error);
+        r.estado = 'confirmada';
+        abrirModal(`<h3>Reserva confirmada ✅</h3><p class="ayuda">Avísale al cliente por WhatsApp (se abre con el mensaje listo).</p>
+          <div class="acciones"><button class="btn claro" id="mCerrar">Cerrar</button><a class="btn verde" target="_blank" rel="noopener" id="mWsp" href="${mensajeConfirmacion(r)}">Enviar WhatsApp</a></div>`);
+        $('mCerrar').onclick = cerrarModal; $('mWsp').addEventListener('click', () => setTimeout(cerrarModal, 300));
+        cargarAgenda();
+      };
+    }
+
+    function modalCancelar(r) {
+      const pagada = r.estado === 'pago_informado' || !!r.comprobante;
+      abrirModal(`<h3>Cancelar reserva</h3>
+        <p class="ayuda">${U.esc(r.cliente_nombre)} · ${U.esc(r.servicio_nombre)} · ${U.fechaLarga(r.fecha)} ${U.hhmm(r.hora_inicio)}</p>
+        <div class="opciones">
+          ${pagada ? `<label><input type="radio" name="reemb" value="pendiente" checked><span><b>Devolver el pago</b><br><span class="ayuda">Haz la anulación en webpay.cl / portal Transbank y luego márcala como hecha.</span></span></label>
+          <label><input type="radio" name="reemb" value="sin_reembolso"><span><b>Sin devolución</b></span></label>` :
+          `<label><input type="radio" name="reemb" value="no_aplica" checked><span><b>No hubo pago</b></span></label>`}
+        </div>
+        <label for="mMotivo">Motivo <span class="opc">(opcional)</span></label><input type="text" id="mMotivo" maxlength="120">
+        <p class="ayuda" style="margin-top:10px">La hora queda libre para otros clientes.</p>
+        <div class="acciones"><button class="btn claro" id="mCancel">Volver</button><button class="btn acento" id="mOk">Cancelar reserva</button></div>`);
+      $('mCancel').onclick = cerrarModal;
+      $('mOk').onclick = async () => {
+        const reembolso = document.querySelector('input[name=reemb]:checked').value;
+        const motivo = $('mMotivo').value.trim();
+        const nota = [r.nota_admin, motivo && 'Cancelada: ' + motivo].filter(Boolean).join(' · ');
+        const { error } = await db.from('reservas').update({ estado: 'cancelada', reembolso, nota_admin: nota }).eq('id', r.id);
+        if (error) return fallo(error);
+        cerrarModal(); toast('Reserva cancelada'); cargarAgenda();
+      };
+    }
+
+    function modalNota(r) {
+      abrirModal(`<h3>Nota interna</h3><textarea id="mNota" maxlength="500">${U.esc(r.nota_admin || '')}</textarea>
+        <div class="acciones"><button class="btn claro" id="mCancel">Volver</button><button class="btn" id="mOk">Guardar</button></div>`);
+      $('mCancel').onclick = cerrarModal;
+      $('mOk').onclick = async () => {
+        const { error } = await db.from('reservas').update({ nota_admin: $('mNota').value.trim() }).eq('id', r.id);
+        if (error) return fallo(error); cerrarModal(); cargarAgenda();
+      };
+    }
+
+    // Reserva manual (teléfono, presencial)
+    $('btnNuevaReserva').onclick = () => {
+      const activos = S.servicios.filter(s => s.activo);
+      abrirModal(`<h3>Reserva manual</h3>
+        <p class="ayuda">Para clientes que reservan por teléfono o en el local. Queda confirmada.</p>
+        <label for="nServ">Servicio</label><select id="nServ">${activos.map(s => `<option value="${s.id}">${U.esc(s.nombre)} · ${s.duracion_min} min · ${U.clp(s.precio)}</option>`).join('')}</select>
+        <div class="dos"><div><label for="nFecha">Día</label><input type="date" id="nFecha" value="${S.dia}"></div>
+          <div><label for="nHora">Hora</label><select id="nHora"></select></div></div>
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="nLibre"> Elegir cualquier hora (sobrecupo)</label>
+        <input type="time" id="nHoraLibre" class="oculto" step="300" style="margin-top:6px">
+        <label for="nNombre">Nombre</label><input type="text" id="nNombre" maxlength="80">
+        <label for="nTel">Teléfono</label><input type="tel" id="nTel" maxlength="20">
+        <label for="nNota">Nota <span class="opc">(ej: paga en el local)</span></label><input type="text" id="nNota" maxlength="120">
+        <div id="nError" class="aviso error oculto"></div>
+        <div class="acciones"><button class="btn claro" id="mCancel">Volver</button><button class="btn acento" id="mOk">Guardar</button></div>`);
+      const recalcular = async () => {
+        const s = S.servicios.find(x => x.id === Number($('nServ').value)), f = $('nFecha').value;
+        if (!s || !f) return;
+        const { data } = await db.rpc('horas_ocupadas', { p_desde: f, p_hasta: f });
+        const hs = U.horasDisponibles({ fecha: f, duracion: s.duracion_min, horario: S.horario, bloqueos: S.bloqueos, ocupadas: data || [], ajustes: S.ajustes, ignorarAnticipacion: true });
+        $('nHora').innerHTML = hs.length ? hs.map(h => `<option>${h}</option>`).join('') : '<option value="">Sin horas libres</option>';
+      };
+      $('nServ').onchange = recalcular; $('nFecha').onchange = recalcular; recalcular();
+      $('nLibre').onchange = () => { $('nHoraLibre').classList.toggle('oculto', !$('nLibre').checked); $('nHora').disabled = $('nLibre').checked; };
+      $('mCancel').onclick = cerrarModal;
+      $('mOk').onclick = async () => {
+        const s = S.servicios.find(x => x.id === Number($('nServ').value));
+        const hora = $('nLibre').checked ? $('nHoraLibre').value : $('nHora').value;
+        const nombre = $('nNombre').value.trim(), tel = $('nTel').value.trim();
+        const err = (m) => { $('nError').textContent = m; $('nError').classList.remove('oculto'); };
+        if (!s) return err('Elige un servicio.');
+        if (!$('nFecha').value || !hora) return err('Elige día y hora.');
+        if (nombre.length < 2) return err('Ingresa el nombre.');
+        const ini = U.aMin(hora), fin = ini + s.duracion_min;
+        if (fin >= 24 * 60) return err('El servicio pasa de la medianoche.');
+        const { error } = await db.from('reservas').insert({
+          codigo: nuevoCodigo(), servicio_id: s.id, servicio_nombre: s.nombre, precio: s.precio, fecha: $('nFecha').value,
+          hora_inicio: hora, hora_fin: U.aHora(fin), cliente_nombre: nombre, cliente_telefono: tel || '-',
+          estado: 'confirmada', origen: 'admin', nota_admin: $('nNota').value.trim()
+        });
+        if (error) return err(error.message);
+        S.dia = $('nFecha').value;
+        cerrarModal(); toast('Reserva guardada');
+        $('diaSel').value = S.dia; cargarAgenda();
+      };
+    };
+
+    $('diaSel').onchange = () => { if ($('diaSel').value) { S.dia = $('diaSel').value; cargarAgenda(); } };
+    $('diaAnt').onclick = () => { S.dia = U.sumarDias(S.dia, -1); $('diaSel').value = S.dia; cargarAgenda(); };
+    $('diaSig').onclick = () => { S.dia = U.sumarDias(S.dia, 1); $('diaSel').value = S.dia; cargarAgenda(); };
+    $('diaHoy').onclick = () => { S.dia = U.ahoraCL().fecha; $('diaSel').value = S.dia; cargarAgenda(); };
+    $('verOcultas').onchange = cargarAgenda;
+    setInterval(() => { if (!$('t-agenda').classList.contains('oculto') && $('modal').classList.contains('oculto')) cargarAgenda(); }, 60000);
+
+    // ---------- Servicios ----------
+    function pintarServicios() {
+      $('listaServ').innerHTML = S.servicios.map(s => `
+        <div class="serv-ed" data-id="${s.id}">
+          <div class="fila2">
+            <div><label>Nombre</label><input type="text" data-k="nombre" value="${U.esc(s.nombre)}" maxlength="60"></div>
+            <div><label>Duración (min)</label><input type="number" data-k="duracion_min" value="${s.duracion_min}" min="5" step="5"></div>
+            <div><label>Precio ($)</label><input type="number" data-k="precio" value="${s.precio}" min="0" step="500"></div>
+            <div><label>Orden</label><input type="number" data-k="orden" value="${s.orden}"></div>
+          </div>
+          <label>Descripción <span class="opc">(opcional)</span></label><input type="text" data-k="descripcion" value="${U.esc(s.descripcion || '')}" maxlength="120">
+          <label>Link de pago Webpay (${U.clp(s.precio)}) <span class="opc">${S.ajustes.cobrar_online ? '' : '— solo si activas el cobro online'}</span></label><input type="url" data-k="link_pago" value="${U.esc(s.link_pago || '')}" placeholder="https://www.webpay.cl/...">
+          ${S.ajustes.cobrar_online && !(s.link_pago || '').trim() ? '<div class="aviso atencion" style="margin:8px 0 0">Sin link de pago: con el cobro online activado, no se muestra a los clientes.</div>' : ''}
+          <div class="pie-ed"><label class="check"><input type="checkbox" data-k="activo" ${s.activo ? 'checked' : ''}> Activo</label>
+            <span class="esp"></span><button class="btn chico" data-guardar="${s.id}">Guardar</button></div>
+        </div>`).join('') || '<div class="vacio">Aún no hay servicios.</div>';
+      document.querySelectorAll('[data-guardar]').forEach(b => b.onclick = () => guardarServicio(b.closest('.serv-ed')));
+    }
+    async function guardarServicio(el) {
+      const v = {};
+      el.querySelectorAll('[data-k]').forEach(i => v[i.dataset.k] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? Number(i.value) : i.value.trim());
+      if (!v.nombre) return toast('El servicio necesita nombre');
+      if (!(v.duracion_min > 0)) return toast('Revisa la duración');
+      if (v.link_pago && !/^https:\/\//i.test(v.link_pago)) return toast('El link de pago debe empezar con https://');
+      const id = Number(el.dataset.id);
+      const anterior = S.servicios.find(s => s.id === id);
+      const { error } = await db.from('servicios').update(v).eq('id', id);
+      if (error) return fallo(error);
+      await cargarConfig(); pintarServicios();
+      toast(S.ajustes.cobrar_online && anterior && anterior.precio !== v.precio ? 'Guardado. Recuerda cambiar también el precio del link en Webpay.' : 'Servicio guardado');
+    }
+    $('btnAddServ').onclick = async () => {
+      const { error } = await db.from('servicios').insert({ nombre: 'Nuevo servicio', duracion_min: 30, precio: 10000, activo: false, orden: S.servicios.length + 1 });
+      if (error) return fallo(error);
+      await cargarConfig(); pintarServicios();
+    };
+
+    // ---------- Horario ----------
+    function pintarHorario() {
+      $('tablaHorario').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d => {
+        const h = S.horario.find(x => x.dia === d) || { dia: d, abierto: false, apertura: '10:00', cierre: '19:00' };
+        return `<tr data-dia="${d}">
+          <td><label class="check"><input type="checkbox" data-k="abierto" ${h.abierto ? 'checked' : ''}> ${U.DIAS[d]}</label></td>
+          <td><input type="time" data-k="apertura" value="${U.hhmm(h.apertura)}" step="900"></td>
+          <td><input type="time" data-k="cierre" value="${U.hhmm(h.cierre)}" step="900"></td>
+          <td><input type="time" data-k="colacion_inicio" value="${U.hhmm(h.colacion_inicio)}" step="900" title="Colación desde"></td>
+          <td><input type="time" data-k="colacion_fin" value="${U.hhmm(h.colacion_fin)}" step="900" title="Colación hasta"></td></tr>`;
+      }).join('');
+    }
+    $('btnGuardarHorario').onclick = async () => {
+      const filas = [...document.querySelectorAll('#tablaHorario tr')].map(tr => {
+        const g = (k) => tr.querySelector(`[data-k=${k}]`);
+        return { dia: Number(tr.dataset.dia), abierto: g('abierto').checked, apertura: g('apertura').value || '10:00', cierre: g('cierre').value || '19:00',
+          colacion_inicio: g('colacion_inicio').value || null, colacion_fin: g('colacion_fin').value || null };
+      });
+      for (const f of filas) {
+        if (f.abierto && f.apertura >= f.cierre) return toast(`${U.DIAS[f.dia]}: la hora de cierre debe ser después de la apertura`);
+        if (!!f.colacion_inicio !== !!f.colacion_fin) return toast(`${U.DIAS[f.dia]}: completa ambas horas de colación o deja las dos vacías`);
+        if (f.colacion_inicio && f.colacion_inicio >= f.colacion_fin) return toast(`${U.DIAS[f.dia]}: revisa la colación`);
+      }
+      const { error } = await db.from('horario').upsert(filas);
+      if (error) return fallo(error);
+      await cargarConfig(); toast('Horario guardado');
+    };
+
+    // ---------- Bloqueos ----------
+    $('blCompleto').onchange = () => $('blHoras').classList.toggle('oculto', $('blCompleto').checked);
+    function pintarBloqueos() {
+      $('blFecha').value ||= U.ahoraCL().fecha;
+      $('listaBloqueos').innerHTML = S.bloqueos.length ? S.bloqueos.map(b => `
+        <div class="reserva" style="grid-template-columns:1fr auto">
+          <div class="info"><div class="n">${U.fechaLarga(b.fecha)}</div>
+            <div class="s">${b.hora_inicio ? U.hhmm(b.hora_inicio) + ' – ' + U.hhmm(b.hora_fin) : 'Día completo'}${b.motivo ? ' · ' + U.esc(b.motivo) : ''}</div></div>
+          <div><button class="btn claro chico" data-borrar-bl="${b.id}">Quitar</button></div></div>`).join('')
+        : '<div class="vacio">No hay bloqueos próximos.</div>';
+      document.querySelectorAll('[data-borrar-bl]').forEach(b => b.onclick = async () => {
+        const { error } = await db.from('bloqueos').delete().eq('id', Number(b.dataset.borrarBl));
+        if (error) return fallo(error); await cargarConfig(); pintarBloqueos(); toast('Bloqueo quitado');
+      });
+    }
+    $('btnAddBloqueo').onclick = async () => {
+      const desde = $('blFecha').value, hasta = $('blFechaHasta').value || desde, completo = $('blCompleto').checked;
+      if (!desde) return toast('Elige la fecha');
+      if (hasta < desde) return toast('La fecha "hasta" debe ser posterior');
+      const ini = completo ? null : $('blIni').value, fin = completo ? null : $('blFin').value;
+      if (!completo && (!ini || !fin || ini >= fin)) return toast('Revisa las horas del bloqueo');
+      const filas = []; for (let f = desde; f <= hasta && filas.length < 120; f = U.sumarDias(f, 1)) filas.push({ fecha: f, hora_inicio: ini, hora_fin: fin, motivo: $('blMotivo').value.trim() });
+      const { error } = await db.from('bloqueos').insert(filas);
+      if (error) return fallo(error);
+      $('blMotivo').value = ''; $('blFechaHasta').value = '';
+      await cargarConfig(); pintarBloqueos(); toast(filas.length > 1 ? `${filas.length} días bloqueados` : 'Bloqueo agregado');
+    };
+
+    // ---------- Ajustes ----------
+    function pintarAjustes() {
+      const a = S.ajustes;
+      $('ajNombre').value = a.nombre; $('ajDir').value = a.direccion || ''; $('ajWsp').value = a.whatsapp || '';
+      $('ajBloqueo').value = a.minutos_bloqueo; $('ajIntervalo').value = String(a.intervalo_min);
+      $('ajAnticipacion').value = a.anticipacion_min; $('ajDias').value = a.dias_max; $('ajPolitica').value = a.politica_cancelacion || '';
+      $('ajCobrar').checked = !!a.cobrar_online;
+    }
+    $('btnGuardarAjustes').onclick = async () => {
+      const v = { nombre: $('ajNombre').value.trim() || 'Mi Peluquería', direccion: $('ajDir').value.trim(), whatsapp: $('ajWsp').value.trim(),
+        minutos_bloqueo: Math.max(5, Number($('ajBloqueo').value) || 20), intervalo_min: Number($('ajIntervalo').value),
+        anticipacion_min: Math.max(0, Number($('ajAnticipacion').value) || 0), dias_max: Math.max(1, Number($('ajDias').value) || 30),
+        politica_cancelacion: $('ajPolitica').value.trim(), cobrar_online: $('ajCobrar').checked };
+      const { error } = await db.from('ajustes').update(v).eq('id', 1);
+      if (error) return fallo(error);
+      await cargarConfig(); toast('Ajustes guardados');
+    };
+
+    iniciar();
+  })();
+  </script>
+</body>
+</html>
