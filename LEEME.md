@@ -29,16 +29,12 @@ Si cambias una variable después, en Vercel ve a *Deployments → ⋯ → Redepl
 Cambiar `ADMIN_PASSWORD` cierra la sesión del panel en todos los teléfonos.
 
 ## Cómo funciona
-
-**Modo actual: solo reserva de hora** (se paga en el local)
 - El cliente elige servicio → día → hora → nombre y teléfono. La hora queda reservada al tiro, con un código.
+  El pago se hace en el local.
 - Puede cancelar en **Ver mi reserva** (código + teléfono) y la hora se libera.
 - Máximo 2 horas futuras por teléfono.
 - Jessid ve la agenda en el panel, agrega reservas manuales, cancela, y manda la confirmación por WhatsApp con un clic.
-
-**Cobro con Webpay** (opcional, a futuro): panel → Ajustes → "Cobrar al reservar con Webpay", y pegar el link
-de pago de cada servicio (panel → Servicios). La hora se guarda 20 minutos mientras el cliente paga; él informa
-el n° del comprobante y Jessid confirma en "Por revisar".
+- En el panel también cambia servicios y precios, horario y colación, días bloqueados y ajustes.
 
 ## Archivos
 | Archivo | Qué es |

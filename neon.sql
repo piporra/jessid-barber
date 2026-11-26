@@ -1,7 +1,7 @@
 -- =====================================================================
---  Jessid Barber · Reservas
---  Ejecutar completo en Neon → SQL Editor → Run
---  (se puede volver a ejecutar sin perder datos)
+--  Jessid Barber · Reservas de hora
+--  Esquema de la base de datos (Neon / Postgres).
+--  Se puede volver a ejecutar sin perder datos.
 -- =====================================================================
 
 -- ---------- Tablas ----------------------------------------------------
@@ -10,12 +10,11 @@ create table if not exists ajustes (
   id                   int primary key default 1 check (id = 1),
   nombre               text not null default 'Jessid Barber',
   direccion            text default 'Calle Lourdes 899, Peralillo',
-  whatsapp             text default '987540500', -- teléfono del local
-  minutos_bloqueo      int  not null default 20, -- minutos que se guarda la hora mientras el cliente paga
-  intervalo_min        int  not null default 30, -- cada cuántos minutos se ofrecen horas
-  anticipacion_min     int  not null default 60, -- mínimo de minutos de anticipación para reservar
-  dias_max             int  not null default 30, -- hasta cuántos días hacia adelante se puede reservar
-  politica_cancelacion text default 'Si necesitas cancelar o cambiar tu hora, escríbenos por WhatsApp. Cada caso se revisa de forma individual.'
+  whatsapp             text default '987540500',
+  intervalo_min        int  not null default 30,   -- cada cuántos minutos se ofrecen horas
+  anticipacion_min     int  not null default 60,   -- mínimo de minutos de anticipación para reservar
+  dias_max             int  not null default 30,   -- hasta cuántos días hacia adelante se puede reservar
+  politica_cancelacion text default 'Si no puedes venir, cancela tu hora desde "Ver mi reserva" o escríbenos por WhatsApp.'
 );
 
 create table if not exists servicios (
@@ -24,7 +23,6 @@ create table if not exists servicios (
   descripcion  text default '',
   duracion_min int  not null check (duracion_min > 0),
   precio       int  not null check (precio >= 0),
-  link_pago    text default '',                  -- link de Webpay (webpay.cl) con el precio fijo del servicio
   activo       boolean not null default true,
   orden        int not null default 0
 );
@@ -34,13 +32,12 @@ create table if not exists horario (
   dia             smallint primary key check (dia between 0 and 6),
   abierto         boolean not null default true,
   apertura        time not null default '10:00',
-  cierre          time not null default '19:00',
+  cierre          time not null default '20:00',
   colacion_inicio time,
   colacion_fin    time
 );
 
--- Días u horas sin atención (vacaciones, trámites, feriados).
--- Si hora_inicio y hora_fin son null, se bloquea el día completo.
+-- Días u horas sin atención. Sin horas = día completo.
 create table if not exists bloqueos (
   id          serial primary key,
   fecha       date not null,
@@ -61,24 +58,14 @@ create table if not exists reservas (
   cliente_nombre   text not null,
   cliente_telefono text not null,
   cliente_email    text default '',
-  -- pendiente_pago → pago_informado → confirmada ;  o bien  cancelada
-  estado           text not null default 'pendiente_pago'
-                   check (estado in ('pendiente_pago','pago_informado','confirmada','cancelada')),
-  comprobante      text default '',              -- n° de orden / autorización que informa el cliente
-  expira_en        timestamptz,                  -- solo aplica a pendiente_pago
-  reembolso        text not null default 'no_aplica'
-                   check (reembolso in ('no_aplica','pendiente','realizado','sin_reembolso')),
+  estado           text not null default 'confirmada' check (estado in ('confirmada','cancelada')),
   nota_admin       text default '',
   origen           text not null default 'web' check (origen in ('web','admin')),
   creado_en        timestamptz not null default now()
 );
 create index if not exists reservas_fecha_idx on reservas (fecha);
 
-
 -- ---------- Datos iniciales ------------------------------------------
-
--- Cobro online con Webpay: apagado = solo reserva de hora, se paga en el local
-alter table ajustes add column if not exists cobrar_online boolean not null default false;
 
 insert into ajustes (id) values (1) on conflict do nothing;
 
@@ -94,20 +81,19 @@ on conflict do nothing;
 
 insert into servicios (nombre, descripcion, duracion_min, precio, orden)
 select * from (values
-  ('Corte degradado',            '',                                        30, 10000, 1),
-  ('Cortes clásicos',            '',                                        30, 10000, 2),
-  ('Corte de niños',             '',                                        30, 10000, 3),
-  ('Corte + barba',              'Corte y barba en la misma hora',          60, 17000, 4),
-  ('Barba',                      '',                                        30,  7000, 5),
-  ('Cejas y líneas',             '',                                        15,  1000, 6),
-  ('Diseños freestyle',          'Dibujos y líneas en el pelo',             30,  8000, 7),
-  ('Rizos permanentes + corte',  '',                                       180, 50000, 8),
-  ('Colorimetría + corte',       'Visos, color y similares',               300, 60000, 9)
+  ('Corte degradado',            '',                               30, 10000, 1),
+  ('Cortes clásicos',            '',                               30, 10000, 2),
+  ('Corte de niños',             '',                               30, 10000, 3),
+  ('Corte + barba',              'Corte y barba en la misma hora', 60, 17000, 4),
+  ('Barba',                      '',                               30,  7000, 5),
+  ('Cejas y líneas',             '',                               15,  1000, 6),
+  ('Diseños freestyle',          'Dibujos y líneas en el pelo',    30,  8000, 7),
+  ('Rizos permanentes + corte',  '',                              180, 50000, 8),
+  ('Colorimetría + corte',       'Visos, color y similares',      300, 60000, 9)
 ) v
 where not exists (select 1 from servicios);
 
 -- ---------- Funciones auxiliares --------------------------------------
-
 
 -- Hora local de Chile
 create or replace function ahora_cl() returns timestamp
@@ -117,48 +103,35 @@ language sql stable as $$ select (now() at time zone 'America/Santiago'); $$;
 create or replace function tel_norm(t text) returns text
 language sql immutable as $$ select right(regexp_replace(coalesce(t,''), '\D', '', 'g'), 8); $$;
 
--- Una reserva "ocupa" la hora si está confirmada, con pago informado,
--- o pendiente de pago y todavía dentro del tiempo de bloqueo.
-create or replace function reserva_activa(r reservas) returns boolean
-language sql stable as $$
-  select r.estado in ('confirmada','pago_informado')
-      or (r.estado = 'pendiente_pago' and r.expira_en > now());
-$$;
-
--- ---------- Funciones públicas (las usa la página del cliente) --------
+-- ---------- Funciones que usa la página de reservas -------------------
 
 -- Horas ocupadas en un rango de fechas (sin datos personales)
 create or replace function horas_ocupadas(p_desde date, p_hasta date)
 returns table (fecha date, hora_inicio time, hora_fin time)
-language sql stable security definer set search_path = public as $$
+language sql stable as $$
   select r.fecha, r.hora_inicio, r.hora_fin
   from reservas r
-  where r.fecha between p_desde and p_hasta and reserva_activa(r);
+  where r.fecha between p_desde and p_hasta and r.estado = 'confirmada';
 $$;
 
 create or replace function crear_reserva(
   p_servicio_id int, p_fecha date, p_hora time,
   p_nombre text, p_telefono text, p_email text default ''
 ) returns json
-language plpgsql security definer set search_path = public as $$
+language plpgsql as $$
 declare
   a ajustes; s servicios; h horario;
-  v_fin time; v_inicio_ts timestamp; v_codigo text; v_expira timestamptz;
+  v_fin time; v_codigo text;
 begin
   select * into a from ajustes where id = 1;
   select * into s from servicios where id = p_servicio_id and activo;
   if not found then raise exception 'El servicio no está disponible.'; end if;
-  if a.cobrar_online and coalesce(trim(s.link_pago),'') = '' then
-    raise exception 'Este servicio aún no tiene link de pago configurado.';
-  end if;
   if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Ingresa tu nombre.'; end if;
   if length(tel_norm(p_telefono)) < 8 then raise exception 'Ingresa un teléfono válido.'; end if;
 
   v_fin := p_hora + make_interval(mins => s.duracion_min);
-  v_inicio_ts := p_fecha + p_hora;
-
   if v_fin <= p_hora then raise exception 'El servicio excede el horario del día.'; end if;
-  if v_inicio_ts < ahora_cl() + make_interval(mins => a.anticipacion_min) then
+  if (p_fecha + p_hora) < ahora_cl() + make_interval(mins => a.anticipacion_min) then
     raise exception 'Esa hora ya no está disponible (se requiere % minutos de anticipación).', a.anticipacion_min;
   end if;
   if p_fecha > (ahora_cl())::date + a.dias_max then
@@ -182,24 +155,15 @@ begin
   -- Evita que dos personas tomen la misma hora al mismo tiempo
   perform pg_advisory_xact_lock(hashtext('reservas-' || p_fecha::text));
 
-  if exists (select 1 from reservas r where r.fecha = p_fecha and reserva_activa(r)
+  if exists (select 1 from reservas r where r.fecha = p_fecha and r.estado = 'confirmada'
              and p_hora < r.hora_fin and v_fin > r.hora_inicio) then
     raise exception 'Alguien acaba de tomar esa hora. Elige otra, por favor.';
   end if;
 
-  -- Freno anti-abuso
-  if a.cobrar_online then
-    -- máximo 2 reservas pendientes de pago por teléfono
-    if (select count(*) from reservas r where tel_norm(r.cliente_telefono) = tel_norm(p_telefono)
-        and r.estado = 'pendiente_pago' and r.expira_en > now()) >= 2 then
-      raise exception 'Ya tienes reservas pendientes de pago. Complétalas o espera a que venzan.';
-    end if;
-  else
-    -- máximo 2 horas futuras reservadas por internet con el mismo teléfono
-    if (select count(*) from reservas r where tel_norm(r.cliente_telefono) = tel_norm(p_telefono)
-        and r.origen = 'web' and r.estado = 'confirmada' and (r.fecha + r.hora_inicio) >= ahora_cl()) >= 2 then
-      raise exception 'Ya tienes 2 horas reservadas. Si necesitas otra, escríbenos por WhatsApp.';
-    end if;
+  -- Máximo 2 horas futuras reservadas por internet con el mismo teléfono
+  if (select count(*) from reservas r where tel_norm(r.cliente_telefono) = tel_norm(p_telefono)
+      and r.origen = 'web' and r.estado = 'confirmada' and (r.fecha + r.hora_inicio) >= ahora_cl()) >= 2 then
+    raise exception 'Ya tienes 2 horas reservadas. Si necesitas otra, escríbenos por WhatsApp.';
   end if;
 
   loop
@@ -207,82 +171,37 @@ begin
     exit when length(v_codigo) = 6 and not exists (select 1 from reservas where codigo = v_codigo);
   end loop;
 
-  v_expira := case when a.cobrar_online then now() + make_interval(mins => a.minutos_bloqueo) end;
-
   insert into reservas (codigo, servicio_id, servicio_nombre, precio, fecha, hora_inicio, hora_fin,
-                        cliente_nombre, cliente_telefono, cliente_email, estado, expira_en)
+                        cliente_nombre, cliente_telefono, cliente_email, estado)
   values (v_codigo, s.id, s.nombre, s.precio, p_fecha, p_hora, v_fin,
-          trim(p_nombre), trim(p_telefono), trim(coalesce(p_email,'')),
-          case when a.cobrar_online then 'pendiente_pago' else 'confirmada' end, v_expira);
+          trim(p_nombre), trim(p_telefono), trim(coalesce(p_email,'')), 'confirmada');
 
-  return json_build_object('codigo', v_codigo, 'link_pago', s.link_pago, 'precio', s.precio,
-                           'servicio', s.nombre, 'fecha', p_fecha, 'hora_inicio', p_hora,
-                           'hora_fin', v_fin, 'expira_en', v_expira,
-                           'estado', case when a.cobrar_online then 'pendiente_pago' else 'confirmada' end);
-end $$;
-
--- El cliente avisa que pagó (ingresa n° de orden o código de autorización del comprobante)
-create or replace function informar_pago(p_codigo text, p_telefono text, p_comprobante text)
-returns json
-language plpgsql security definer set search_path = public as $$
-declare r reservas;
-begin
-  select * into r from reservas where codigo = upper(trim(p_codigo))
-    and tel_norm(cliente_telefono) = tel_norm(p_telefono) for update;
-  if not found then raise exception 'No encontramos una reserva con ese código y teléfono.'; end if;
-  if length(trim(coalesce(p_comprobante,''))) < 3 then
-    raise exception 'Ingresa el número de orden o código de autorización de tu comprobante.';
-  end if;
-  if r.estado in ('confirmada','pago_informado') then
-    return json_build_object('estado', r.estado);
-  end if;
-  if r.estado = 'cancelada' then raise exception 'Esta reserva fue cancelada. Escríbenos por WhatsApp.'; end if;
-
-  -- Si venció el bloqueo pero la hora sigue libre, se mantiene igual
-  if r.expira_en <= now() then
-    perform pg_advisory_xact_lock(hashtext('reservas-' || r.fecha::text));
-    if exists (select 1 from reservas x where x.id <> r.id and x.fecha = r.fecha and reserva_activa(x)
-               and r.hora_inicio < x.hora_fin and r.hora_fin > x.hora_inicio) then
-      update reservas set comprobante = trim(p_comprobante),
-             nota_admin = trim(nota_admin || ' [Pagó después de vencer y la hora ya estaba tomada: revisar reembolso o reagendar]')
-       where id = r.id;
-      return json_build_object('estado', 'conflicto', 'mensaje',
-        'Tu tiempo de reserva venció y la hora fue tomada por otra persona. Guardamos tu comprobante: te contactaremos para reagendar o devolver el pago.');
-    end if;
-  end if;
-
-  update reservas set estado = 'pago_informado', comprobante = trim(p_comprobante) where id = r.id;
-  return json_build_object('estado', 'pago_informado');
+  return json_build_object('codigo', v_codigo, 'precio', s.precio, 'servicio', s.nombre,
+                           'fecha', p_fecha, 'hora_inicio', p_hora, 'hora_fin', v_fin, 'estado', 'confirmada');
 end $$;
 
 create or replace function consultar_reserva(p_codigo text, p_telefono text)
 returns json
-language sql stable security definer set search_path = public as $$
+language sql stable as $$
   select json_build_object(
     'codigo', codigo, 'servicio', servicio_nombre, 'precio', precio,
     'fecha', fecha, 'hora_inicio', hora_inicio, 'hora_fin', hora_fin,
-    'cliente_nombre', cliente_nombre,
-    'estado', case when estado = 'pendiente_pago' and expira_en <= now() then 'vencida' else estado end,
-    'expira_en', expira_en,
-    'puede_cancelar', (estado = 'confirmada' and coalesce(comprobante,'') = '' and (fecha + hora_inicio) > ahora_cl()),
-    'link_pago', (select link_pago from servicios where id = servicio_id))
+    'cliente_nombre', cliente_nombre, 'estado', estado,
+    'puede_cancelar', (estado = 'confirmada' and (fecha + hora_inicio) > ahora_cl()))
   from reservas
   where codigo = upper(trim(p_codigo)) and tel_norm(cliente_telefono) = tel_norm(p_telefono);
 $$;
 
--- El cliente cancela su hora (solo reservas sin pago online y que aún no ocurren)
+-- El cliente cancela su hora (solo si aún no ocurre)
 create or replace function cancelar_reserva(p_codigo text, p_telefono text)
 returns json
-language plpgsql security definer set search_path = public as $$
+language plpgsql as $$
 declare r reservas;
 begin
   select * into r from reservas where codigo = upper(trim(p_codigo))
     and tel_norm(cliente_telefono) = tel_norm(p_telefono) for update;
   if not found then raise exception 'No encontramos una reserva con ese código y teléfono.'; end if;
   if r.estado = 'cancelada' then return json_build_object('estado', 'cancelada'); end if;
-  if r.estado <> 'confirmada' or coalesce(r.comprobante,'') <> '' then
-    raise exception 'Esta reserva no se puede cancelar desde aquí. Escríbenos por WhatsApp.';
-  end if;
   if (r.fecha + r.hora_inicio) <= ahora_cl() then raise exception 'Esta hora ya pasó.'; end if;
   update reservas set estado = 'cancelada',
          nota_admin = trim(coalesce(nota_admin,'') || ' Cancelada por el cliente desde la app.')

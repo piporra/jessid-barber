@@ -22,11 +22,7 @@
   </header>
 
   <main class="contenedor">
-    <div id="avisoPendiente" class="aviso atencion oculto">
-      Tienes una reserva pendiente de pago. <a href="#" id="lnkContinuar"><b>Continuar con el pago</b></a>
-    </div>
-
-    <div class="pasos" id="barraPasos"><span></span><span></span><span></span><span></span></div>
+    <div class="pasos" id="barraPasos"><span></span><span></span><span></span></div>
 
     <div id="cargando" class="cargando">Cargando…</div>
     <div id="errorGeneral" class="aviso error oculto"></div>
@@ -65,42 +61,15 @@
       <div id="error3" class="aviso error oculto"></div>
       <div class="acciones">
         <button class="btn claro" data-volver="2">Atrás</button>
-        <button class="btn acento" id="btnReservar">Reservar y pagar</button>
+        <button class="btn acento" id="btnReservar">Reservar hora</button>
       </div>
-    </section>
-
-    <!-- Paso 4: pago -->
-    <section id="paso4" class="tarjeta oculto">
-      <h2>Paga para asegurar tu hora</h2>
-      <div class="codigo-box">
-        <div class="et">Tu código de reserva</div>
-        <div class="cod" id="codReserva">——</div>
-      </div>
-      <div class="resumen" id="resumen4"></div>
-      <p class="reloj" id="reloj"></p>
-
-      <a class="btn webpay ancho" id="btnWebpay" href="#" target="_blank" rel="noopener">Pagar con Webpay</a>
-      <ol class="pasos-pago">
-        <li>Toca <b>Pagar con Webpay</b> (se abre en otra pestaña) y paga <b id="montoPago"></b>.</li>
-        <li>Al terminar, en tu comprobante aparece el <b>número de orden</b> o <b>código de autorización</b>.</li>
-        <li>Vuelve a esta página, escríbelo abajo y toca <b>Ya pagué</b>.</li>
-      </ol>
-
-      <div class="separador"></div>
-      <label for="inComprobante">N° de orden o código de autorización</label>
-      <input type="text" id="inComprobante" maxlength="60" autocomplete="off">
-      <div id="error4" class="aviso oculto"></div>
-      <div class="acciones">
-        <button class="btn verde" id="btnYaPague">Ya pagué</button>
-      </div>
-      <p class="politica"><a href="#" id="lnkOtraHora">Elegir otra hora</a></p>
     </section>
 
     <!-- Paso 5: listo -->
     <section id="paso5" class="tarjeta exito oculto">
       <div class="icono">✓</div>
-      <h2 id="tituloExito">¡Listo! Recibimos tu aviso de pago</h2>
-      <p class="ayuda" id="textoExito">Revisaremos el pago y te confirmaremos la hora por WhatsApp.</p>
+      <h2 id="tituloExito">¡Tu hora está reservada!</h2>
+      <p class="ayuda" id="textoExito"></p>
       <div class="resumen" id="resumen5" style="text-align:left"></div>
       <div class="acciones">
         <a class="btn claro" id="btnWspExito" target="_blank" rel="noopener">Escribir por WhatsApp</a>
@@ -124,7 +93,6 @@
       </div>
     </section>
 
-    <p class="pie oculto" id="pieWebpay">Pago seguro con Webpay de Transbank</p>
   </main>
 
   <script src="api.js"></script>
@@ -133,15 +101,14 @@
   (function () {
     const $ = (id) => document.getElementById(id);
     const db = U.cliente();
-    const CLAVE = 'peluqueria_reserva_pendiente';
-    const S = { ajustes: null, servicios: [], horario: [], bloqueos: [], ocupadas: [], servicio: null, fecha: null, hora: null, reserva: null, timer: null };
-    const VISTAS = ['paso1', 'paso2', 'paso3', 'paso4', 'paso5', 'consulta'];
+    const S = { ajustes: null, servicios: [], horario: [], bloqueos: [], ocupadas: [], servicio: null, fecha: null, hora: null, reserva: null };
+    const VISTAS = ['paso1', 'paso2', 'paso3', 'paso5', 'consulta'];
 
     function mostrar(v) {
       VISTAS.forEach(x => $(x).classList.toggle('oculto', x !== v));
       const n = v.startsWith('paso') ? Number(v.slice(4)) : 0;
       $('barraPasos').classList.toggle('oculto', !n);
-      [...$('barraPasos').children].forEach((s, i) => s.classList.toggle('hecho', i < Math.min(n, 4)));
+      [...$('barraPasos').children].forEach((s, i) => s.classList.toggle('hecho', i < n));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     function error(el, msg, tipo = 'error') {
@@ -149,9 +116,6 @@
     }
     const msgErr = (e) => (e && (e.message || e.error_description)) || 'Ocurrió un error. Intenta de nuevo.';
 
-    function guardarPendiente(codigo, telefono) { try { localStorage.setItem(CLAVE, JSON.stringify({ codigo, telefono })); } catch (_) {} }
-    function leerPendiente() { try { return JSON.parse(localStorage.getItem(CLAVE)); } catch (_) { return null; } }
-    function borrarPendiente() { try { localStorage.removeItem(CLAVE); } catch (_) {} }
 
     async function cargar() {
       try {
@@ -163,12 +127,7 @@
           db.from('bloqueos').select('*').gte('fecha', hoy)
         ]);
         for (const r of [a, s, h, b]) if (r.error) throw r.error;
-        S.ajustes = a.data; S.horario = h.data; S.bloqueos = b.data;
-        S.cobrar = !!S.ajustes.cobrar_online;
-        S.servicios = S.cobrar ? s.data.filter(x => (x.link_pago || '').trim()) : s.data;
-        $('btnReservar').textContent = S.cobrar ? 'Reservar y pagar' : 'Reservar hora';
-        $('pieWebpay').classList.toggle('oculto', !S.cobrar);
-        if (!S.cobrar) $('barraPasos').lastElementChild.remove();
+        S.ajustes = a.data; S.horario = h.data; S.bloqueos = b.data; S.servicios = s.data;
         $('nombreLocal').textContent = S.ajustes.nombre;
         if ($('logoLocal')) $('logoLocal').alt = S.ajustes.nombre;
         document.title = 'Reserva tu hora · ' + S.ajustes.nombre;
@@ -182,12 +141,6 @@
         pintarServicios();
         $('cargando').classList.add('oculto');
 
-        const p = leerPendiente();
-        if (p) {
-          const { data } = await db.rpc('consultar_reserva', { p_codigo: p.codigo, p_telefono: p.telefono });
-          if (data && data.estado === 'pendiente_pago') $('avisoPendiente').classList.remove('oculto');
-          else borrarPendiente();
-        }
         mostrar('paso1');
       } catch (e) {
         $('cargando').classList.add('oculto');
@@ -279,71 +232,19 @@
       const { data, error: e } = await db.rpc('crear_reserva', {
         p_servicio_id: S.servicio.id, p_fecha: S.fecha, p_hora: S.hora, p_nombre: nombre, p_telefono: telefono, p_email: email
       });
-      btn.disabled = false; btn.textContent = S.cobrar ? 'Reservar y pagar' : 'Reservar hora';
+      btn.disabled = false; btn.textContent = 'Reservar hora';
       if (e) {
         error($('error3'), msgErr(e));
         if (/tomar esa hora|no está disponible|anticipación/.test(e.message || '')) { await refrescarOcupadas(); }
         return;
       }
       S.reserva = { ...data, telefono };
-      if (data.estado === 'confirmada') { exito('reservada'); return; }
-      guardarPendiente(data.codigo, telefono);
-      irPago();
+      exito();
     };
 
-    function irPago() {
+    function exito() {
       const r = S.reserva;
-      $('codReserva').textContent = r.codigo;
-      $('resumen4').innerHTML = resumenHTML(r);
-      $('montoPago').textContent = U.clp(r.precio);
-      $('btnWebpay').href = r.link_pago;
-      $('inComprobante').value = '';
-      error($('error4'), '');
-      $('avisoPendiente').classList.add('oculto');
-      mostrar('paso4');
-      iniciarReloj(r.expira_en);
-    }
-
-    function iniciarReloj(expira) {
-      clearInterval(S.timer);
-      const fin = new Date(expira).getTime(), el = $('reloj');
-      const tick = () => {
-        const s = Math.max(0, Math.round((fin - Date.now()) / 1000));
-        if (s > 0) {
-          el.className = 'reloj';
-          el.textContent = `Guardamos tu hora por ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} min mientras pagas`;
-        } else {
-          el.className = 'reloj vencido';
-          el.textContent = 'El tiempo para pagar venció. Si ya pagaste, igual ingresa tu comprobante abajo.';
-          clearInterval(S.timer);
-        }
-      };
-      tick(); S.timer = setInterval(tick, 1000);
-    }
-
-    $('btnYaPague').onclick = async () => {
-      const comp = $('inComprobante').value.trim();
-      if (comp.length < 3) return error($('error4'), 'Ingresa el número de orden o código de autorización que aparece en tu comprobante de Webpay.');
-      const btn = $('btnYaPague'); btn.disabled = true; btn.textContent = 'Enviando…';
-      const { data, error: e } = await db.rpc('informar_pago', { p_codigo: S.reserva.codigo, p_telefono: S.reserva.telefono, p_comprobante: comp });
-      btn.disabled = false; btn.textContent = 'Ya pagué';
-      if (e) return error($('error4'), msgErr(e));
-      if (data.estado === 'conflicto') { borrarPendiente(); return error($('error4'), data.mensaje); }
-      clearInterval(S.timer);
-      borrarPendiente();
-      exito(data.estado);
-    };
-
-    function exito(estado) {
-      const r = S.reserva;
-      const textos = {
-        reservada: ['¡Tu hora está reservada!', `Te esperamos. El pago se hace en el local. Guarda tu código ${r.codigo}: si no puedes venir, cancela tu hora en "Ver mi reserva".`],
-        confirmada: ['¡Tu hora está confirmada!', 'Te esperamos.'],
-        pago_informado: ['¡Listo! Recibimos tu aviso de pago', 'Revisaremos el pago y te confirmaremos la hora por WhatsApp. Guarda tu código: ' + r.codigo]
-      };
-      const [titulo, texto] = textos[estado] || textos.pago_informado;
-      $('tituloExito').textContent = titulo;
-      $('textoExito').textContent = texto;
+      $('textoExito').textContent = `Te esperamos. El pago se hace en el local. Guarda tu código ${r.codigo}: si no puedes venir, cancela tu hora en "Ver mi reserva".`;
       $('resumen5').innerHTML = `<div class="fila"><span>Código</span><span><b>${U.esc(r.codigo)}</b></span></div>` + resumenHTML(r) +
         (S.ajustes.direccion ? `<div class="fila" style="margin-top:6px"><span>Dirección</span><span><a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(S.ajustes.direccion)}">${U.esc(S.ajustes.direccion)}</a></span></div>` : '');
       const wsp = S.ajustes.whatsapp;
@@ -357,23 +258,12 @@
       const n = b.dataset.volver;
       if (n === '2') { mostrar('paso2'); pintarDias(); } else mostrar('paso' + n);
     });
-    $('lnkOtraHora').onclick = (ev) => { ev.preventDefault(); clearInterval(S.timer); borrarPendiente(); S.hora = null; mostrar('paso1'); };
     $('btnNueva').onclick = () => { S.servicio = S.fecha = S.hora = S.reserva = null; mostrar('paso1'); };
-
-    // Continuar una reserva pendiente
-    $('lnkContinuar').onclick = async (ev) => {
-      ev.preventDefault();
-      const p = leerPendiente(); if (!p) return;
-      const { data } = await db.rpc('consultar_reserva', { p_codigo: p.codigo, p_telefono: p.telefono });
-      if (!data) { borrarPendiente(); $('avisoPendiente').classList.add('oculto'); return; }
-      S.reserva = { ...data, telefono: p.telefono };
-      irPago();
-    };
 
     // Consulta
     $('lnkConsulta').onclick = (ev) => { ev.preventDefault(); $('resultadoConsulta').innerHTML = ''; error($('errorConsulta'), ''); mostrar('consulta'); };
     $('btnCerrarConsulta').onclick = () => mostrar('paso1');
-    const ETIQUETA = { pendiente_pago: 'Pendiente de pago', pago_informado: 'Pago en revisión', confirmada: 'Confirmada', cancelada: 'Cancelada', vencida: 'Vencida (no se pagó a tiempo)' };
+    const ETIQUETA = { confirmada: 'Confirmada', cancelada: 'Cancelada' };
     $('btnConsultar').onclick = async () => {
       const cod = $('inCodConsulta').value.trim().toUpperCase(), tel = $('inTelConsulta').value.trim();
       $('resultadoConsulta').innerHTML = '';
@@ -385,10 +275,7 @@
       $('resultadoConsulta').innerHTML = `<div class="resumen" style="margin-top:14px">
         <div class="fila"><span>Estado</span><span class="chip ${data.estado}">${ETIQUETA[data.estado] || data.estado}</span></div>
         <div class="fila"><span>Nombre</span><span>${U.esc(data.cliente_nombre)}</span></div>${resumenHTML(data)}</div>
-        ${data.estado === 'pendiente_pago' || data.estado === 'vencida' ? '<button class="btn webpay ancho" id="btnIrPago" style="margin-top:12px">Ir a pagar / informar pago</button>' : ''}
         ${data.puede_cancelar ? '<button class="btn claro ancho" id="btnCancelarHora" style="margin-top:12px">Cancelar mi hora</button>' : ''}`;
-      const b = $('btnIrPago');
-      if (b) b.onclick = () => { S.reserva = { ...data, telefono: tel }; guardarPendiente(cod, tel); irPago(); };
       const c = $('btnCancelarHora');
       if (c) c.onclick = () => {
         if (c.dataset.seguro !== '1') { c.dataset.seguro = '1'; c.textContent = 'Toca otra vez para confirmar la cancelación'; c.classList.remove('claro'); c.classList.add('acento'); return; }

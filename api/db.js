@@ -3,12 +3,12 @@
 import { q, esAdmin, responder, mensajeError, leerCuerpo } from './_lib.js';
 
 const TABLAS = {
-  ajustes:  { pk: 'id',  publica: true, cols: ['id', 'nombre', 'direccion', 'whatsapp', 'minutos_bloqueo', 'intervalo_min', 'anticipacion_min', 'dias_max', 'politica_cancelacion', 'cobrar_online'] },
-  servicios:{ pk: 'id',  publica: true, cols: ['id', 'nombre', 'descripcion', 'duracion_min', 'precio', 'link_pago', 'activo', 'orden'] },
+  ajustes:  { pk: 'id',  publica: true, cols: ['id', 'nombre', 'direccion', 'whatsapp', 'intervalo_min', 'anticipacion_min', 'dias_max', 'politica_cancelacion'] },
+  servicios:{ pk: 'id',  publica: true, cols: ['id', 'nombre', 'descripcion', 'duracion_min', 'precio', 'activo', 'orden'] },
   horario:  { pk: 'dia', publica: true, cols: ['dia', 'abierto', 'apertura', 'cierre', 'colacion_inicio', 'colacion_fin'] },
   bloqueos: { pk: 'id',  publica: true, cols: ['id', 'fecha', 'hora_inicio', 'hora_fin', 'motivo'] },
   reservas: { pk: 'id',  publica: false, cols: ['id', 'codigo', 'servicio_id', 'servicio_nombre', 'precio', 'fecha', 'hora_inicio', 'hora_fin',
-    'cliente_nombre', 'cliente_telefono', 'cliente_email', 'estado', 'comprobante', 'expira_en', 'reembolso', 'nota_admin', 'origen', 'creado_en'] }
+    'cliente_nombre', 'cliente_telefono', 'cliente_email', 'estado', 'nota_admin', 'origen', 'creado_en'] }
 };
 const OPS = { eq: '=', gte: '>=', lte: '<=' };
 const id = (c) => '"' + c + '"';

@@ -107,8 +107,6 @@ textarea { resize: vertical; min-height: 70px; }
 .btn.claro { background: #fff; color: var(--tinta); border: 1.5px solid var(--linea); }
 .btn.claro:hover { border-color: #9fb0e6; }
 .btn.chico { padding: 7px 11px; font-size: .85rem; border-radius: 9px; }
-.btn.webpay { background: #d5006c; }
-.btn.webpay:hover { background: #ad0058; }
 .btn.verde { background: #1f8f4e; }
 .acciones { display: flex; gap: 10px; margin-top: 18px; }
 .acciones .btn { flex: 1; }
@@ -127,25 +125,14 @@ textarea { resize: vertical; min-height: 70px; }
 .aviso.ok { background: var(--ok-claro); color: var(--ok); }
 .aviso.atencion { background: var(--aviso-claro); color: var(--aviso); }
 
-/* Pago */
-.codigo-box { text-align: center; background: var(--fondo); border-radius: 12px; padding: 14px; margin: 14px 0; }
-.codigo-box .et { font-size: .8rem; color: var(--suave); text-transform: uppercase; letter-spacing: 1px; }
-.codigo-box .cod { color: var(--azul); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 2rem; font-weight: 700; letter-spacing: 4px; }
-.reloj { text-align: center; font-size: .95rem; color: var(--aviso); font-weight: 600; }
-.reloj.vencido { color: var(--error); }
-.pasos-pago { padding-left: 20px; margin: 10px 0 0; color: var(--suave); font-size: .93rem; }
-.pasos-pago li { margin: 4px 0; }
 .separador { height: 1px; background: var(--linea); margin: 20px 0 4px; }
 
 .exito { text-align: center; }
 .exito .icono { width: 64px; height: 64px; border-radius: 50%; margin: 4px auto 12px; display: grid; place-items: center; background: var(--ok-claro); color: var(--ok); font-size: 32px; }
 
 .chip { display: inline-block; font-size: .75rem; font-weight: 700; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
-.chip.pendiente_pago { background: var(--aviso-claro); color: var(--aviso); }
-.chip.pago_informado { background: #e3ecfb; color: #2457a6; }
 .chip.confirmada { background: var(--ok-claro); color: var(--ok); }
-.chip.cancelada, .chip.vencida { background: #eee9e4; color: #7b716a; }
-.chip.conflicto { background: var(--error-claro); color: var(--error); }
+.chip.cancelada { background: #eee9e4; color: #7b716a; }
 
 .pie { text-align: center; color: var(--suave); font-size: .8rem; margin-top: 30px; }
 .cargando { text-align: center; color: var(--suave); padding: 30px 0; }

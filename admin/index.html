@@ -90,7 +90,7 @@
     </div>
     <main class="contenedor">
       <div class="tabs" id="tabs">
-        <button class="tab sel" data-t="agenda">Agenda <span class="badge oculto" id="badgeRevisar"></span></button>
+        <button class="tab sel" data-t="agenda">Agenda</button>
         <button class="tab" data-t="servicios">Servicios</button>
         <button class="tab" data-t="horario">Horario</button>
         <button class="tab" data-t="bloqueos">Días bloqueados</button>
@@ -99,11 +99,6 @@
 
       <!-- AGENDA -->
       <section id="t-agenda">
-        <div id="cajaRevisar" class="tarjeta oculto" style="border-color:#bcd0f0">
-          <h2>Por revisar</h2>
-          <p class="ayuda">Pagos informados por clientes (compara el código con el aviso de Transbank y confirma) y reembolsos pendientes.</p>
-          <div id="listaRevisar"></div>
-        </div>
         <div class="tarjeta">
           <div class="nav-dia">
             <button class="btn claro chico" id="diaAnt">‹</button>
@@ -113,7 +108,7 @@
             <span class="tit" id="diaTitulo"></span>
             <button class="btn acento chico" id="btnNuevaReserva">+ Reserva manual</button>
           </div>
-          <label class="check" style="margin-bottom:10px"><input type="checkbox" id="verOcultas"> Mostrar canceladas y vencidas</label>
+          <label class="check" style="margin-bottom:10px"><input type="checkbox" id="verOcultas"> Mostrar canceladas</label>
           <div id="listaDia"></div>
         </div>
       </section>
@@ -122,7 +117,7 @@
       <section id="t-servicios" class="oculto">
         <div class="tarjeta">
           <h2>Servicios</h2>
-          <p class="ayuda">Nombre, duración y precio de cada servicio. Si activas el cobro online (en Ajustes), cada servicio necesita su <b>link de Webpay</b> con el mismo precio, creado en <a href="https://www.webpay.cl" target="_blank" rel="noopener">webpay.cl</a> como producto de precio fijo.</p>
+          <p class="ayuda">Nombre, duración y precio de cada servicio. Los servicios inactivos no aparecen en la página de reservas.</p>
           <div class="grid-serv" id="listaServ"></div>
           <div class="acciones"><button class="btn claro" id="btnAddServ">+ Agregar servicio</button></div>
         </div>
@@ -170,14 +165,11 @@
           <label for="ajDir">Dirección</label><input type="text" id="ajDir" maxlength="120">
           <label for="ajWsp">WhatsApp del local</label><input type="tel" id="ajWsp" placeholder="9 1234 5678" maxlength="20">
           <div class="dos">
-            <div><label for="ajBloqueo">Minutos para pagar</label><input type="number" id="ajBloqueo" min="5" max="120"></div>
             <div><label for="ajIntervalo">Horas cada (minutos)</label>
               <select id="ajIntervalo"><option>15</option><option>20</option><option>30</option><option>45</option><option>60</option></select></div>
             <div><label for="ajAnticipacion">Anticipación mínima (minutos)</label><input type="number" id="ajAnticipacion" min="0" max="2880"></div>
             <div><label for="ajDias">Reservar hasta (días adelante)</label><input type="number" id="ajDias" min="1" max="120"></div>
           </div>
-          <label class="check" style="margin-top:16px"><input type="checkbox" id="ajCobrar"> Cobrar al reservar con Webpay</label>
-          <p class="ayuda" style="margin:4px 0 0">Apagado: el cliente solo reserva la hora y paga en el local. Encendido: debe pagar con el link de Webpay de cada servicio para asegurar la hora.</p>
           <label for="ajPolitica">Política de cancelación (la ve el cliente)</label><textarea id="ajPolitica" maxlength="500"></textarea>
           <div class="acciones"><button class="btn" id="btnGuardarAjustes">Guardar ajustes</button></div>
         </div>
@@ -195,12 +187,10 @@
     const $ = (id) => document.getElementById(id);
     const db = U.cliente();
     const S = { ajustes: null, servicios: [], horario: [], bloqueos: [], dia: U.ahoraCL().fecha };
-    const ETQ = { pendiente_pago: 'Pendiente de pago', pago_informado: 'Pago por revisar', confirmada: 'Confirmada', cancelada: 'Cancelada', vencida: 'Vencida' };
-    const ETQ_REEMB = { pendiente: 'Reembolso pendiente', realizado: 'Reembolso realizado', sin_reembolso: 'Sin reembolso' };
+    const ETQ = { confirmada: 'Confirmada', cancelada: 'Cancelada' };
 
     function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.remove('oculto'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('oculto'), 2600); }
     function fallo(e) { console.error(e); toast('Error: ' + ((e && e.message) || 'no se pudo guardar')); }
-    const estadoReal = (r) => r.estado === 'pendiente_pago' && new Date(r.expira_en) <= new Date() ? 'vencida' : r.estado;
     const nuevoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
 
     function abrirModal(html) { $('modalCuerpo').innerHTML = html; $('modal').classList.remove('oculto'); }
@@ -253,14 +243,12 @@
 
     // ---------- Agenda ----------
     function tarjetaReserva(r, conFecha) {
-      const est = estadoReal(r);
-      const apagada = est === 'cancelada' || est === 'vencida';
+      const est = r.estado;
+      const apagada = est === 'cancelada';
       const tel = U.esc(r.cliente_telefono);
       const btns = [];
-      if (est === 'pago_informado' || est === 'pendiente_pago' || est === 'vencida') btns.push(`<button class="btn verde chico" data-acc="confirmar" data-id="${r.id}">Confirmar pago</button>`);
       if (est === 'confirmada') btns.push(`<a class="btn claro chico" target="_blank" rel="noopener" href="${mensajeConfirmacion(r)}">Enviar confirmación WhatsApp</a>`);
       if (est !== 'cancelada') btns.push(`<button class="btn claro chico" data-acc="cancelar" data-id="${r.id}">Cancelar</button>`);
-      if (r.reembolso === 'pendiente') btns.push(`<button class="btn claro chico" data-acc="reembolsado" data-id="${r.id}">Marcar reembolso hecho</button>`);
       btns.push(`<a class="btn claro chico" target="_blank" rel="noopener" href="${U.linkWhatsapp(r.cliente_telefono, 'Hola ' + r.cliente_nombre.split(' ')[0] + ', ')}">WhatsApp</a>`);
       btns.push(`<button class="btn claro chico" data-acc="nota" data-id="${r.id}">Nota</button>`);
       return `<div class="reserva ${apagada ? 'apagada' : ''}">
@@ -269,11 +257,9 @@
           <div class="n">${U.esc(r.cliente_nombre)}</div>
           <div class="s">${U.esc(r.servicio_nombre)}${conFecha ? ' · ' + U.fechaLarga(r.fecha) : ''}</div>
           <div class="c">${tel}${r.cliente_email ? ' · ' + U.esc(r.cliente_email) : ''} · Código <b>${U.esc(r.codigo)}</b>${r.origen === 'admin' ? ' · manual' : ''}</div>
-          ${r.comprobante ? `<div class="c">Comprobante informado: <b>${U.esc(r.comprobante)}</b></div>` : ''}
           ${r.nota_admin ? `<div class="nota">${U.esc(r.nota_admin)}</div>` : ''}
         </div>
         <div class="lado"><span class="chip ${est}">${ETQ[est]}</span>
-          ${r.reembolso !== 'no_aplica' ? `<div><span class="chip ${r.reembolso === 'pendiente' ? 'conflicto' : 'cancelada'}" style="margin-top:4px">${ETQ_REEMB[r.reembolso]}</span></div>` : ''}
           <div class="p">${U.clp(r.precio)}</div></div>
         <div class="btns">${btns.join('')}</div>
       </div>`;
@@ -282,7 +268,7 @@
     function mensajeConfirmacion(r) {
       const local = S.ajustes.nombre + (S.ajustes.direccion ? ' (' + S.ajustes.direccion + ')' : '');
       return U.linkWhatsapp(r.cliente_telefono,
-        `Hola ${r.cliente_nombre.split(' ')[0]}, ${r.comprobante ? 'tu pago fue recibido y ' : ''}tu hora quedó confirmada ✅\n\n` +
+        `Hola ${r.cliente_nombre.split(' ')[0]}, tu hora quedó confirmada ✅\n\n` +
         `${r.servicio_nombre}\n${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}\n${local}\nCódigo: ${r.codigo}\n\n¡Te esperamos!`);
     }
 
@@ -290,29 +276,19 @@
     async function cargarAgenda() {
       const hoy = U.ahoraCL().fecha;
       $('diaTitulo').textContent = U.fechaLarga(S.dia) + (S.dia === hoy ? ' (hoy)' : '');
-      const [dia, rev] = await Promise.all([
-        db.from('reservas').select('*').eq('fecha', S.dia).order('hora_inicio'),
-        db.from('reservas').select('*').or('estado.eq.pago_informado,reembolso.eq.pendiente').gte('fecha', U.sumarDias(hoy, -60)).order('fecha').order('hora_inicio')
-      ]);
+      const dia = await db.from('reservas').select('*').eq('fecha', S.dia).order('hora_inicio');
       if (dia.error) return fallo(dia.error);
-      if (rev.error) return fallo(rev.error);
       RESERVAS = {};
-      [...dia.data, ...rev.data].forEach(r => RESERVAS[r.id] = r);
-
-      const porRevisar = rev.data;
-      $('cajaRevisar').classList.toggle('oculto', !porRevisar.length);
-      $('badgeRevisar').classList.toggle('oculto', !porRevisar.length);
-      $('badgeRevisar').textContent = porRevisar.length;
-      $('listaRevisar').innerHTML = porRevisar.map(r => tarjetaReserva(r, true)).join('');
+      dia.data.forEach(r => RESERVAS[r.id] = r);
 
       const ver = $('verOcultas').checked;
-      const lista = dia.data.filter(r => ver || !['cancelada', 'vencida'].includes(estadoReal(r)));
+      const lista = dia.data.filter(r => ver || r.estado !== 'cancelada');
       const h = S.horario.find(x => x.dia === U.diaSemana(S.dia));
       const bloq = S.bloqueos.filter(b => b.fecha === S.dia);
       let cab = '';
       if (h && !h.abierto) cab += '<div class="aviso atencion">Día sin atención según el horario.</div>';
       bloq.forEach(b => cab += `<div class="aviso atencion">Bloqueado ${b.hora_inicio ? U.hhmm(b.hora_inicio) + '–' + U.hhmm(b.hora_fin) : 'todo el día'}${b.motivo ? ': ' + U.esc(b.motivo) : ''}</div>`);
-      const total = dia.data.filter(r => estadoReal(r) === 'confirmada').reduce((a, r) => a + r.precio, 0);
+      const total = dia.data.filter(r => r.estado === 'confirmada').reduce((a, r) => a + r.precio, 0);
       $('listaDia').innerHTML = cab + (lista.length ? lista.map(r => tarjetaReserva(r)).join('') : '<div class="vacio">Sin reservas este día.</div>') +
         (total ? `<p class="ayuda" style="text-align:right;margin-top:12px">Total confirmado del día: <b>${U.clp(total)}</b></p>` : '');
     }
@@ -321,53 +297,21 @@
       const b = e.target.closest('[data-acc]'); if (!b) return;
       const r = RESERVAS[b.dataset.id]; if (!r) return;
       const acc = b.dataset.acc;
-      if (acc === 'confirmar') return modalConfirmar(r);
       if (acc === 'cancelar') return modalCancelar(r);
       if (acc === 'nota') return modalNota(r);
-      if (acc === 'reembolsado') {
-        const { error } = await db.from('reservas').update({ reembolso: 'realizado' }).eq('id', r.id);
-        if (error) return fallo(error); toast('Reembolso marcado como realizado'); cargarAgenda();
-      }
     });
 
-    function modalConfirmar(r) {
-      abrirModal(`<h3>Confirmar pago</h3>
-        <p class="ayuda">Revisa en el correo de Transbank o en webpay.cl que exista un pago de <b>${U.clp(r.precio)}</b>${r.comprobante ? ' con el código <b>' + U.esc(r.comprobante) + '</b>' : ''}.</p>
-        <div class="resumen"><div class="fila"><span>Cliente</span><span>${U.esc(r.cliente_nombre)}</span></div>
-          <div class="fila"><span>Servicio</span><span>${U.esc(r.servicio_nombre)}</span></div>
-          <div class="fila"><span>Cuándo</span><span>${U.fechaLarga(r.fecha)} ${U.hhmm(r.hora_inicio)}</span></div></div>
-        ${estadoReal(r) === 'vencida' ? '<div class="aviso atencion">Esta reserva venció sin aviso de pago. Confírmala solo si encontraste el pago y la hora sigue libre.</div>' : ''}
-        <div class="acciones"><button class="btn claro" id="mCancel">Volver</button><button class="btn verde" id="mOk">Sí, confirmar</button></div>`);
-      $('mCancel').onclick = cerrarModal;
-      $('mOk').onclick = async () => {
-        const { error } = await db.from('reservas').update({ estado: 'confirmada' }).eq('id', r.id);
-        if (error) return fallo(error);
-        r.estado = 'confirmada';
-        abrirModal(`<h3>Reserva confirmada ✅</h3><p class="ayuda">Avísale al cliente por WhatsApp (se abre con el mensaje listo).</p>
-          <div class="acciones"><button class="btn claro" id="mCerrar">Cerrar</button><a class="btn verde" target="_blank" rel="noopener" id="mWsp" href="${mensajeConfirmacion(r)}">Enviar WhatsApp</a></div>`);
-        $('mCerrar').onclick = cerrarModal; $('mWsp').addEventListener('click', () => setTimeout(cerrarModal, 300));
-        cargarAgenda();
-      };
-    }
-
     function modalCancelar(r) {
-      const pagada = r.estado === 'pago_informado' || !!r.comprobante;
       abrirModal(`<h3>Cancelar reserva</h3>
         <p class="ayuda">${U.esc(r.cliente_nombre)} · ${U.esc(r.servicio_nombre)} · ${U.fechaLarga(r.fecha)} ${U.hhmm(r.hora_inicio)}</p>
-        <div class="opciones">
-          ${pagada ? `<label><input type="radio" name="reemb" value="pendiente" checked><span><b>Devolver el pago</b><br><span class="ayuda">Haz la anulación en webpay.cl / portal Transbank y luego márcala como hecha.</span></span></label>
-          <label><input type="radio" name="reemb" value="sin_reembolso"><span><b>Sin devolución</b></span></label>` :
-          `<label><input type="radio" name="reemb" value="no_aplica" checked><span><b>No hubo pago</b></span></label>`}
-        </div>
-        <label for="mMotivo">Motivo <span class="opc">(opcional)</span></label><input type="text" id="mMotivo" maxlength="120">
+<label for="mMotivo">Motivo <span class="opc">(opcional)</span></label><input type="text" id="mMotivo" maxlength="120">
         <p class="ayuda" style="margin-top:10px">La hora queda libre para otros clientes.</p>
         <div class="acciones"><button class="btn claro" id="mCancel">Volver</button><button class="btn acento" id="mOk">Cancelar reserva</button></div>`);
       $('mCancel').onclick = cerrarModal;
       $('mOk').onclick = async () => {
-        const reembolso = document.querySelector('input[name=reemb]:checked').value;
         const motivo = $('mMotivo').value.trim();
         const nota = [r.nota_admin, motivo && 'Cancelada: ' + motivo].filter(Boolean).join(' · ');
-        const { error } = await db.from('reservas').update({ estado: 'cancelada', reembolso, nota_admin: nota }).eq('id', r.id);
+        const { error } = await db.from('reservas').update({ estado: 'cancelada', nota_admin: nota }).eq('id', r.id);
         if (error) return fallo(error);
         cerrarModal(); toast('Reserva cancelada'); cargarAgenda();
       };
@@ -448,8 +392,6 @@
             <div><label>Orden</label><input type="number" data-k="orden" value="${s.orden}"></div>
           </div>
           <label>Descripción <span class="opc">(opcional)</span></label><input type="text" data-k="descripcion" value="${U.esc(s.descripcion || '')}" maxlength="120">
-          <label>Link de pago Webpay (${U.clp(s.precio)}) <span class="opc">${S.ajustes.cobrar_online ? '' : '— solo si activas el cobro online'}</span></label><input type="url" data-k="link_pago" value="${U.esc(s.link_pago || '')}" placeholder="https://www.webpay.cl/...">
-          ${S.ajustes.cobrar_online && !(s.link_pago || '').trim() ? '<div class="aviso atencion" style="margin:8px 0 0">Sin link de pago: con el cobro online activado, no se muestra a los clientes.</div>' : ''}
           <div class="pie-ed"><label class="check"><input type="checkbox" data-k="activo" ${s.activo ? 'checked' : ''}> Activo</label>
             <span class="esp"></span><button class="btn chico" data-guardar="${s.id}">Guardar</button></div>
         </div>`).join('') || '<div class="vacio">Aún no hay servicios.</div>';
@@ -460,13 +402,11 @@
       el.querySelectorAll('[data-k]').forEach(i => v[i.dataset.k] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? Number(i.value) : i.value.trim());
       if (!v.nombre) return toast('El servicio necesita nombre');
       if (!(v.duracion_min > 0)) return toast('Revisa la duración');
-      if (v.link_pago && !/^https:\/\//i.test(v.link_pago)) return toast('El link de pago debe empezar con https://');
       const id = Number(el.dataset.id);
-      const anterior = S.servicios.find(s => s.id === id);
       const { error } = await db.from('servicios').update(v).eq('id', id);
       if (error) return fallo(error);
       await cargarConfig(); pintarServicios();
-      toast(S.ajustes.cobrar_online && anterior && anterior.precio !== v.precio ? 'Guardado. Recuerda cambiar también el precio del link en Webpay.' : 'Servicio guardado');
+      toast('Servicio guardado');
     }
     $('btnAddServ').onclick = async () => {
       const { error } = await db.from('servicios').insert({ nombre: 'Nuevo servicio', duracion_min: 30, precio: 10000, activo: false, orden: S.servicios.length + 1 });
@@ -534,15 +474,14 @@
     function pintarAjustes() {
       const a = S.ajustes;
       $('ajNombre').value = a.nombre; $('ajDir').value = a.direccion || ''; $('ajWsp').value = a.whatsapp || '';
-      $('ajBloqueo').value = a.minutos_bloqueo; $('ajIntervalo').value = String(a.intervalo_min);
+      $('ajIntervalo').value = String(a.intervalo_min);
       $('ajAnticipacion').value = a.anticipacion_min; $('ajDias').value = a.dias_max; $('ajPolitica').value = a.politica_cancelacion || '';
-      $('ajCobrar').checked = !!a.cobrar_online;
     }
     $('btnGuardarAjustes').onclick = async () => {
       const v = { nombre: $('ajNombre').value.trim() || 'Mi Peluquería', direccion: $('ajDir').value.trim(), whatsapp: $('ajWsp').value.trim(),
-        minutos_bloqueo: Math.max(5, Number($('ajBloqueo').value) || 20), intervalo_min: Number($('ajIntervalo').value),
+        intervalo_min: Number($('ajIntervalo').value),
         anticipacion_min: Math.max(0, Number($('ajAnticipacion').value) || 0), dias_max: Math.max(1, Number($('ajDias').value) || 30),
-        politica_cancelacion: $('ajPolitica').value.trim(), cobrar_online: $('ajCobrar').checked };
+        politica_cancelacion: $('ajPolitica').value.trim() };
       const { error } = await db.from('ajustes').update(v).eq('id', 1);
       if (error) return fallo(error);
       await cargarConfig(); toast('Ajustes guardados');

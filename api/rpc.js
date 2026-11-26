@@ -5,8 +5,7 @@ const FUNCIONES = {
   horas_ocupadas:    ['p_desde', 'p_hasta'],
   crear_reserva:     ['p_servicio_id', 'p_fecha', 'p_hora', 'p_nombre', 'p_telefono', 'p_email'],
   consultar_reserva: ['p_codigo', 'p_telefono'],
-  cancelar_reserva:  ['p_codigo', 'p_telefono'],
-  informar_pago:     ['p_codigo', 'p_telefono', 'p_comprobante']
+  cancelar_reserva:  ['p_codigo', 'p_telefono']
 };
 const DEVUELVE_FILAS = new Set(['horas_ocupadas']);
 
