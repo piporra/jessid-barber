@@ -65,6 +65,10 @@ create table if not exists reservas (
 );
 create index if not exists reservas_fecha_idx on reservas (fecha);
 
+-- Clave secreta de cada reserva, para el link de cancelación
+alter table reservas add column if not exists token uuid not null default gen_random_uuid();
+create unique index if not exists reservas_token_idx on reservas (token);
+
 -- ---------- Datos iniciales ------------------------------------------
 
 insert into ajustes (id) values (1) on conflict do nothing;
@@ -121,7 +125,7 @@ create or replace function crear_reserva(
 language plpgsql as $$
 declare
   a ajustes; s servicios; h horario;
-  v_fin time; v_codigo text;
+  v_fin time; v_codigo text; v_token uuid;
 begin
   select * into a from ajustes where id = 1;
   select * into s from servicios where id = p_servicio_id and activo;
@@ -174,9 +178,10 @@ begin
   insert into reservas (codigo, servicio_id, servicio_nombre, precio, fecha, hora_inicio, hora_fin,
                         cliente_nombre, cliente_telefono, cliente_email, estado)
   values (v_codigo, s.id, s.nombre, s.precio, p_fecha, p_hora, v_fin,
-          trim(p_nombre), trim(p_telefono), trim(coalesce(p_email,'')), 'confirmada');
+          trim(p_nombre), trim(p_telefono), trim(coalesce(p_email,'')), 'confirmada')
+  returning token into v_token;
 
-  return json_build_object('codigo', v_codigo, 'precio', s.precio, 'servicio', s.nombre,
+  return json_build_object('codigo', v_codigo, 'token', v_token, 'precio', s.precio, 'servicio', s.nombre,
                            'fecha', p_fecha, 'hora_inicio', p_hora, 'hora_fin', v_fin, 'estado', 'confirmada');
 end $$;
 
@@ -186,10 +191,22 @@ language sql stable as $$
   select json_build_object(
     'codigo', codigo, 'servicio', servicio_nombre, 'precio', precio,
     'fecha', fecha, 'hora_inicio', hora_inicio, 'hora_fin', hora_fin,
-    'cliente_nombre', cliente_nombre, 'estado', estado,
+    'cliente_nombre', cliente_nombre, 'estado', estado, 'token', token,
     'puede_cancelar', (estado = 'confirmada' and (fecha + hora_inicio) > ahora_cl()))
   from reservas
   where codigo = upper(trim(p_codigo)) and tel_norm(cliente_telefono) = tel_norm(p_telefono);
+$$;
+
+-- Lo mismo, pero con el link de cancelación (token) en vez de código + teléfono
+create or replace function reserva_por_token(p_token uuid)
+returns json
+language sql stable as $$
+  select json_build_object(
+    'codigo', codigo, 'servicio', servicio_nombre, 'precio', precio,
+    'fecha', fecha, 'hora_inicio', hora_inicio, 'hora_fin', hora_fin,
+    'cliente_nombre', cliente_nombre, 'estado', estado, 'token', token,
+    'puede_cancelar', (estado = 'confirmada' and (fecha + hora_inicio) > ahora_cl()))
+  from reservas where token = p_token;
 $$;
 
 -- El cliente cancela su hora (solo si aún no ocurre)
@@ -201,6 +218,22 @@ begin
   select * into r from reservas where codigo = upper(trim(p_codigo))
     and tel_norm(cliente_telefono) = tel_norm(p_telefono) for update;
   if not found then raise exception 'No encontramos una reserva con ese código y teléfono.'; end if;
+  if r.estado = 'cancelada' then return json_build_object('estado', 'cancelada'); end if;
+  if (r.fecha + r.hora_inicio) <= ahora_cl() then raise exception 'Esta hora ya pasó.'; end if;
+  update reservas set estado = 'cancelada',
+         nota_admin = trim(coalesce(nota_admin,'') || ' Cancelada por el cliente desde la app.')
+   where id = r.id;
+  return json_build_object('estado', 'cancelada');
+end $$;
+
+-- Cancelar con el link (token)
+create or replace function cancelar_por_token(p_token uuid)
+returns json
+language plpgsql as $$
+declare r reservas;
+begin
+  select * into r from reservas where token = p_token for update;
+  if not found then raise exception 'No encontramos esta reserva. Revisa el link o escríbenos por WhatsApp.'; end if;
   if r.estado = 'cancelada' then return json_build_object('estado', 'cancelada'); end if;
   if (r.fecha + r.hora_inicio) <= ahora_cl() then raise exception 'Esta hora ya pasó.'; end if;
   update reservas set estado = 'cancelada',

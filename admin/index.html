@@ -307,7 +307,8 @@
       const local = S.ajustes.nombre + (S.ajustes.direccion ? ' (' + S.ajustes.direccion + ')' : '');
       return U.linkWhatsapp(r.cliente_telefono,
         `Hola ${r.cliente_nombre.split(' ')[0]}, tu hora quedó confirmada ✅\n\n` +
-        `${r.servicio_nombre}\n${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}\n${local}\nCódigo: ${r.codigo}\n\n¡Te esperamos!`);
+        `${r.servicio_nombre}\n${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}\n${local}\nCódigo: ${r.codigo}\n\n¡Te esperamos!` +
+        (r.token ? `\n\nSi no puedes venir, cancela tu hora aquí:\n${location.origin}/?cancelar=${r.token}` : ''));
     }
 
     let RESERVAS = {};

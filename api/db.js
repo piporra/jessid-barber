@@ -8,7 +8,7 @@ const TABLAS = {
   horario:  { pk: 'dia', publica: true, cols: ['dia', 'abierto', 'apertura', 'cierre', 'colacion_inicio', 'colacion_fin'] },
   bloqueos: { pk: 'id',  publica: true, cols: ['id', 'fecha', 'hora_inicio', 'hora_fin', 'motivo'] },
   reservas: { pk: 'id',  publica: false, cols: ['id', 'codigo', 'servicio_id', 'servicio_nombre', 'precio', 'fecha', 'hora_inicio', 'hora_fin',
-    'cliente_nombre', 'cliente_telefono', 'cliente_email', 'estado', 'nota_admin', 'origen', 'creado_en'] }
+    'cliente_nombre', 'cliente_telefono', 'cliente_email', 'estado', 'nota_admin', 'origen', 'creado_en', 'token'] }
 };
 const OPS = { eq: '=', gte: '>=', lte: '<=' };
 const id = (c) => '"' + c + '"';
@@ -28,7 +28,7 @@ function armarWhere(t, filtros, params) {
 }
 function limpiar(t, obj) {
   const v = {};
-  for (const [k, x] of Object.entries(obj || {})) if (t.cols.includes(k) && k !== 'creado_en') v[k] = x;
+  for (const [k, x] of Object.entries(obj || {})) if (t.cols.includes(k) && k !== 'creado_en' && k !== 'token') v[k] = x;
   return v;
 }
 
