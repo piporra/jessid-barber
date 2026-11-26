@@ -44,6 +44,29 @@
     .serv-ed .pie-ed .esp { flex: 1; }
     .check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; margin: 0; cursor: pointer; }
     .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .resumen-dia { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+    .resumen-dia span { background: var(--fondo); border-radius: 99px; padding: 5px 12px; font-size: .85rem; font-weight: 600; }
+    .resumen-dia span b { color: var(--azul); }
+    .tl { display: flex; flex-direction: column; gap: 6px; }
+    .tl-fila { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: stretch; }
+    .tl-h { font-weight: 700; font-size: .95rem; padding-top: 10px; text-align: right; color: var(--tinta); white-space: nowrap; }
+    .tl-h small { display: block; font-weight: 400; font-size: .78rem; color: var(--suave); }
+    .tl-libre { width: 100%; text-align: left; border: 1.5px dashed #c9d2ea; background: #fff; border-radius: 10px; padding: 10px 12px; color: var(--suave); cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+    .tl-libre:hover { border-color: var(--azul); color: var(--azul); }
+    .tl-libre .mas { color: var(--azul); }
+    .tl-pasada { border: 1.5px dashed var(--linea); border-radius: 10px; padding: 10px 12px; color: #9aa0ad; font-size: .9rem; }
+    .tl-pausa { border-radius: 10px; padding: 10px 12px; background: repeating-linear-gradient(135deg, #f1f2f6, #f1f2f6 8px, #e8eaf1 8px, #e8eaf1 16px); color: var(--suave); font-weight: 600; font-size: .9rem; }
+    .tl-bloq { border-radius: 10px; padding: 10px 12px; background: var(--aviso-claro); color: var(--aviso); font-weight: 600; font-size: .9rem; }
+    .tl .reserva { grid-template-columns: minmax(0, 1fr) auto; background: #eef2fd; border-color: #c5d1f4; }
+    .tl .reserva .hr { display: none; }
+    .tl .reserva { padding: 10px 12px; }
+    .tl .reserva .chip { display: none; }
+    .tl .reserva .lado .p { margin-top: 0; }
+    .tl .reserva .btns { gap: 5px; margin-top: 4px; }
+    .tl .reserva .btns .btn { padding: 6px 9px; font-size: .78rem; }
+    .tl .reserva.ahora { box-shadow: 0 0 0 2px var(--rojo); }
+    .tl-cancel { margin-top: 18px; }
+    .tl-cancel h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--suave); }
     .modal-fondo { position: fixed; inset: 0; background: rgba(34,28,24,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
     .modal { background: var(--papel); border-radius: 16px; padding: 22px; width: 100%; max-width: 460px; max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
     .modal h3 { font-size: 1.35rem; margin-bottom: 6px; }
@@ -53,6 +76,10 @@
     .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--tinta); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 60; font-size: .92rem; }
     @media (max-width: 600px) {
       .reserva { grid-template-columns: 54px 1fr; }
+      .tl .reserva { grid-template-columns: minmax(0, 1fr); }
+      .tl .reserva .lado { grid-column: 1; }
+      .tl .reserva .info .c { font-size: .8rem; }
+      .tl-fila { grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
       .reserva .lado { grid-column: 2; text-align: left; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .reserva .lado .p { margin: 0; }
       .reserva .lado > div { display: inline; }
@@ -108,7 +135,7 @@
             <span class="tit" id="diaTitulo"></span>
             <button class="btn acento chico" id="btnNuevaReserva">+ Reserva manual</button>
           </div>
-          <label class="check" style="margin-bottom:10px"><input type="checkbox" id="verOcultas"> Mostrar canceladas</label>
+          <label class="check" style="margin-bottom:10px"><input type="checkbox" id="verOcultas"> Mostrar también las canceladas</label>
           <div id="listaDia"></div>
         </div>
       </section>
@@ -247,7 +274,7 @@
       const apagada = est === 'cancelada';
       const tel = U.esc(r.cliente_telefono);
       const btns = [];
-      if (est === 'confirmada') btns.push(`<a class="btn claro chico" target="_blank" rel="noopener" href="${mensajeConfirmacion(r)}">Enviar confirmación WhatsApp</a>`);
+      if (est === 'confirmada') btns.push(`<a class="btn claro chico" target="_blank" rel="noopener" href="${mensajeConfirmacion(r)}">Enviar confirmación</a>`);
       if (est !== 'cancelada') btns.push(`<button class="btn claro chico" data-acc="cancelar" data-id="${r.id}">Cancelar</button>`);
       btns.push(`<a class="btn claro chico" target="_blank" rel="noopener" href="${U.linkWhatsapp(r.cliente_telefono, 'Hola ' + r.cliente_nombre.split(' ')[0] + ', ')}">WhatsApp</a>`);
       btns.push(`<button class="btn claro chico" data-acc="nota" data-id="${r.id}">Nota</button>`);
@@ -282,16 +309,66 @@
       dia.data.forEach(r => RESERVAS[r.id] = r);
 
       const ver = $('verOcultas').checked;
-      const lista = dia.data.filter(r => ver || r.estado !== 'cancelada');
+      const activas = dia.data.filter(r => r.estado === 'confirmada');
+      const canceladas = dia.data.filter(r => r.estado === 'cancelada');
       const h = S.horario.find(x => x.dia === U.diaSemana(S.dia));
       const bloq = S.bloqueos.filter(b => b.fecha === S.dia);
+      const diaBloqueado = bloq.some(b => !b.hora_inicio || !b.hora_fin);
+      const ahora = U.ahoraCL();
+      const total = activas.reduce((a, r) => a + r.precio, 0);
+
+      // Eventos del día: reservas, colación y bloqueos parciales, ordenados por hora
+      const ev = activas.map(r => ({ tipo: 'reserva', ini: U.aMin(r.hora_inicio), fin: U.aMin(r.hora_fin), r }));
+      if (h && h.abierto && h.colacion_inicio && h.colacion_fin) ev.push({ tipo: 'pausa', ini: U.aMin(h.colacion_inicio), fin: U.aMin(h.colacion_fin) });
+      bloq.filter(b => b.hora_inicio && b.hora_fin).forEach(b => ev.push({ tipo: 'bloq', ini: U.aMin(b.hora_inicio), fin: U.aMin(b.hora_fin), motivo: b.motivo }));
+      ev.sort((x, y) => x.ini - y.ini || (x.tipo === 'reserva') - (y.tipo === 'reserva'));
+
+      const paso = Math.max(5, S.ajustes.intervalo_min || 30);
+      const filas = [];
+      let libres = 0;
+      const libre = (ini, fin) => {
+        const pasada = S.dia < ahora.fecha || (S.dia === ahora.fecha && ini < ahora.min);
+        if (!pasada) libres++;
+        filas.push(`<div class="tl-fila"><div class="tl-h">${U.aHora(ini)}</div><div>${pasada
+          ? `<div class="tl-pasada">Libre · ya pasó</div>`
+          : `<button class="tl-libre" data-libre="${U.aHora(ini)}"><span>Libre</span><span class="mas">+ Reservar</span></button>`}</div></div>`);
+      };
+      const huecos = (desde, hasta) => { for (let t = desde; t < hasta; t += paso) libre(t, Math.min(t + paso, hasta)); };
+
       let cab = '';
-      if (h && !h.abierto) cab += '<div class="aviso atencion">Día sin atención según el horario.</div>';
-      bloq.forEach(b => cab += `<div class="aviso atencion">Bloqueado ${b.hora_inicio ? U.hhmm(b.hora_inicio) + '–' + U.hhmm(b.hora_fin) : 'todo el día'}${b.motivo ? ': ' + U.esc(b.motivo) : ''}</div>`);
-      const total = dia.data.filter(r => r.estado === 'confirmada').reduce((a, r) => a + r.precio, 0);
-      $('listaDia').innerHTML = cab + (lista.length ? lista.map(r => tarjetaReserva(r)).join('') : '<div class="vacio">Sin reservas este día.</div>') +
-        (total ? `<p class="ayuda" style="text-align:right;margin-top:12px">Total confirmado del día: <b>${U.clp(total)}</b></p>` : '');
+      if (h && h.abierto && !diaBloqueado) {
+        const apertura = U.aMin(h.apertura), cierre = U.aMin(h.cierre);
+        let cursor = apertura;
+        for (const e of ev) {
+          if (e.ini > cursor) huecos(cursor, Math.min(e.ini, cierre));
+          const rango = `<div class="tl-h">${U.aHora(e.ini)}<small>${U.aHora(e.fin)}</small></div>`;
+          if (e.tipo === 'reserva') {
+            const enCurso = S.dia === ahora.fecha && e.ini <= ahora.min && ahora.min < e.fin;
+            filas.push(`<div class="tl-fila">${rango}<div>${tarjetaReserva(e.r).replace('class="reserva ', `class="reserva ${enCurso ? 'ahora ' : ''}`)}</div></div>`);
+          } else if (e.tipo === 'pausa') {
+            filas.push(`<div class="tl-fila">${rango}<div><div class="tl-pausa">Colación</div></div></div>`);
+          } else {
+            filas.push(`<div class="tl-fila">${rango}<div><div class="tl-bloq">Bloqueado${e.motivo ? ': ' + U.esc(e.motivo) : ''}</div></div></div>`);
+          }
+          cursor = Math.max(cursor, e.fin);
+        }
+        if (cursor < cierre) huecos(cursor, cierre);
+      } else {
+        cab = `<div class="aviso atencion">${diaBloqueado ? 'Día bloqueado' + (bloq.find(b => !b.hora_inicio)?.motivo ? ': ' + U.esc(bloq.find(b => !b.hora_inicio).motivo) : '') : 'Día sin atención según el horario.'}</div>`;
+        activas.forEach(r => filas.push(`<div class="tl-fila"><div class="tl-h">${U.hhmm(r.hora_inicio)}<small>${U.hhmm(r.hora_fin)}</small></div><div>${tarjetaReserva(r)}</div></div>`));
+      }
+
+      const resumen = `<div class="resumen-dia"><span><b>${activas.length}</b> ${activas.length === 1 ? 'reserva' : 'reservas'}</span>` +
+        (h && h.abierto && !diaBloqueado ? `<span><b>${libres}</b> ${libres === 1 ? 'hora libre' : 'horas libres'}</span>` : '') +
+        (total ? `<span>Total <b>${U.clp(total)}</b></span>` : '') + `</div>`;
+      $('listaDia').innerHTML = resumen + cab + `<div class="tl">${filas.join('') || '<div class="vacio">Sin reservas este día.</div>'}</div>` +
+        (ver && canceladas.length ? `<div class="tl-cancel"><h3>Canceladas</h3>${canceladas.map(r => tarjetaReserva(r)).join('')}</div>` : '');
     }
+
+    // Tocar una hora libre abre la reserva manual con esa hora
+    $('listaDia').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-libre]'); if (b) abrirReservaManual(b.dataset.libre);
+    });
 
     document.addEventListener('click', async (e) => {
       const b = e.target.closest('[data-acc]'); if (!b) return;
@@ -328,7 +405,8 @@
     }
 
     // Reserva manual (teléfono, presencial)
-    $('btnNuevaReserva').onclick = () => {
+    $('btnNuevaReserva').onclick = () => abrirReservaManual();
+    function abrirReservaManual(horaPre) {
       const activos = S.servicios.filter(s => s.activo);
       abrirModal(`<h3>Reserva manual</h3>
         <p class="ayuda">Para clientes que reservan por teléfono o en el local. Queda confirmada.</p>
@@ -348,6 +426,11 @@
         const { data } = await db.rpc('horas_ocupadas', { p_desde: f, p_hasta: f });
         const hs = U.horasDisponibles({ fecha: f, duracion: s.duracion_min, horario: S.horario, bloqueos: S.bloqueos, ocupadas: data || [], ajustes: S.ajustes, ignorarAnticipacion: true });
         $('nHora').innerHTML = hs.length ? hs.map(h => `<option>${h}</option>`).join('') : '<option value="">Sin horas libres</option>';
+        if (horaPre && f === S.dia) {
+          if (hs.includes(horaPre)) { $('nHora').value = horaPre; $('nLibre').checked = false; }
+          else { $('nLibre').checked = true; $('nHoraLibre').value = horaPre; }
+          $('nHoraLibre').classList.toggle('oculto', !$('nLibre').checked); $('nHora').disabled = $('nLibre').checked;
+        }
       };
       $('nServ').onchange = recalcular; $('nFecha').onchange = recalcular; recalcular();
       $('nLibre').onchange = () => { $('nHoraLibre').classList.toggle('oculto', !$('nLibre').checked); $('nHora').disabled = $('nLibre').checked; };
@@ -372,7 +455,7 @@
         cerrarModal(); toast('Reserva guardada');
         $('diaSel').value = S.dia; cargarAgenda();
       };
-    };
+    }
 
     $('diaSel').onchange = () => { if ($('diaSel').value) { S.dia = $('diaSel').value; cargarAgenda(); } };
     $('diaAnt').onclick = () => { S.dia = U.sumarDias(S.dia, -1); $('diaSel').value = S.dia; cargarAgenda(); };
