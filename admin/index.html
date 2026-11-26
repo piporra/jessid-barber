@@ -44,6 +44,15 @@
     .serv-ed .pie-ed .esp { flex: 1; }
     .check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; margin: 0; cursor: pointer; }
     .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .dias-h { display: flex; flex-direction: column; gap: 10px; }
+    .dia-h { border: 1px solid var(--linea); border-radius: 12px; padding: 12px 14px; background: #fff; }
+    .dia-h.cerrado { background: var(--fondo); }
+    .dia-h .cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .dia-h .cab .estado { font-size: .85rem; color: var(--suave); }
+    .dia-h .horas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; margin-top: 10px; }
+    .dia-h .horas label { margin: 0 0 4px; font-size: .78rem; font-weight: 600; color: var(--suave); }
+    .dia-h .horas input { padding: 9px 10px; }
+    .dia-h.cerrado .horas { display: none; }
     .resumen-dia { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
     .resumen-dia span { background: var(--fondo); border-radius: 99px; padding: 5px 12px; font-size: .85rem; font-weight: 600; }
     .resumen-dia span b { color: var(--azul); }
@@ -80,16 +89,13 @@
       .tl .reserva .lado { grid-column: 1; }
       .tl .reserva .info .c { font-size: .8rem; }
       .tl-fila { grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
+      .dia-h .horas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .reserva .lado { grid-column: 2; text-align: left; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .reserva .lado .p { margin: 0; }
       .reserva .lado > div { display: inline; }
       .nav-dia .tit { order: 5; flex-basis: 100%; }
       .serv-ed .fila2 { grid-template-columns: 1fr 1fr; }
       .dos { grid-template-columns: 1fr; }
-      .horario-tabla th:nth-child(4), .horario-tabla th:nth-child(5) { display: none; }
-      .horario-tabla td { display: block; padding: 3px 0; }
-      .horario-tabla tr { display: block; border-bottom: 1px solid var(--linea); padding: 8px 0; }
-      .horario-tabla thead { display: none; }
     }
   </style>
 </head>
@@ -154,11 +160,8 @@
       <section id="t-horario" class="oculto">
         <div class="tarjeta">
           <h2>Horario de atención</h2>
-          <p class="ayuda">La colación es opcional: déjala en blanco si no hay pausa.</p>
-          <table class="horario-tabla">
-            <thead><tr><th>Día</th><th>Abre</th><th>Cierra</th><th>Colación desde</th><th>Colación hasta</th></tr></thead>
-            <tbody id="tablaHorario"></tbody>
-          </table>
+          <p class="ayuda">Marca los días que atiendes. La colación es opcional: déjala en blanco si no hay pausa.</p>
+          <div class="dias-h" id="tablaHorario"></div>
           <div class="acciones"><button class="btn" id="btnGuardarHorario">Guardar horario</button></div>
         </div>
       </section>
@@ -500,17 +503,20 @@
     // ---------- Horario ----------
     function pintarHorario() {
       $('tablaHorario').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d => {
-        const h = S.horario.find(x => x.dia === d) || { dia: d, abierto: false, apertura: '10:00', cierre: '19:00' };
-        return `<tr data-dia="${d}">
-          <td><label class="check"><input type="checkbox" data-k="abierto" ${h.abierto ? 'checked' : ''}> ${U.DIAS[d]}</label></td>
-          <td><input type="time" data-k="apertura" value="${U.hhmm(h.apertura)}" step="900"></td>
-          <td><input type="time" data-k="cierre" value="${U.hhmm(h.cierre)}" step="900"></td>
-          <td><input type="time" data-k="colacion_inicio" value="${U.hhmm(h.colacion_inicio)}" step="900" title="Colación desde"></td>
-          <td><input type="time" data-k="colacion_fin" value="${U.hhmm(h.colacion_fin)}" step="900" title="Colación hasta"></td></tr>`;
+        const h = S.horario.find(x => x.dia === d) || { dia: d, abierto: false, apertura: '10:00', cierre: '20:00' };
+        const campo = (k, titulo, v) => `<div><label for="h${d}${k}">${titulo}</label><input type="time" id="h${d}${k}" data-k="${k}" value="${U.hhmm(v)}" step="900"></div>`;
+        return `<div class="dia-h ${h.abierto ? '' : 'cerrado'}" data-dia="${d}">
+          <div class="cab"><label class="check"><input type="checkbox" data-k="abierto" ${h.abierto ? 'checked' : ''}> ${U.DIAS[d]}</label>
+            <span class="estado">${h.abierto ? '' : 'Cerrado'}</span></div>
+          <div class="horas">${campo('apertura', 'Abre', h.apertura)}${campo('cierre', 'Cierra', h.cierre)}${campo('colacion_inicio', 'Colación desde', h.colacion_inicio)}${campo('colacion_fin', 'Colación hasta', h.colacion_fin)}</div>
+        </div>`;
       }).join('');
+      $('tablaHorario').querySelectorAll('[data-k=abierto]').forEach(c => c.onchange = () => {
+        const box = c.closest('.dia-h'); box.classList.toggle('cerrado', !c.checked); box.querySelector('.estado').textContent = c.checked ? '' : 'Cerrado';
+      });
     }
     $('btnGuardarHorario').onclick = async () => {
-      const filas = [...document.querySelectorAll('#tablaHorario tr')].map(tr => {
+      const filas = [...document.querySelectorAll('#tablaHorario .dia-h')].map(tr => {
         const g = (k) => tr.querySelector(`[data-k=${k}]`);
         return { dia: Number(tr.dataset.dia), abierto: g('abierto').checked, apertura: g('apertura').value || '10:00', cierre: g('cierre').value || '19:00',
           colacion_inicio: g('colacion_inicio').value || null, colacion_fin: g('colacion_fin').value || null };
