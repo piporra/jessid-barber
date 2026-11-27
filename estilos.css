@@ -140,3 +140,10 @@ textarea { resize: vertical; min-height: 70px; }
 .mi-hora:first-child { border-top: 0; padding-top: 4px; }
 .mi-hora .btn { flex: none; min-width: 118px; }
 #misHoras h2 { font-size: 1.5rem; }
+
+/* Marca del creador */
+.credito { text-align: center; padding: 26px 8px 6px; color: var(--suave); font-size: 12px; line-height: 1.6; display: flex; flex-direction: column; align-items: center; }
+.credito img { width: 34px; height: 34px; border-radius: 50%; opacity: .9; margin-bottom: 8px; }
+.credito b { color: var(--azul); letter-spacing: .04em; }
+.credito-sm { text-align: center; color: var(--suave); font-size: 11.5px; margin: 18px 0 0; line-height: 1.5; }
+.credito-sm b { color: var(--azul); }
