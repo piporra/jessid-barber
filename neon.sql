@@ -69,6 +69,10 @@ create index if not exists reservas_fecha_idx on reservas (fecha);
 alter table reservas add column if not exists token uuid not null default gen_random_uuid();
 create unique index if not exists reservas_token_idx on reservas (token);
 
+-- Reservas para varias personas: cuántas y qué se hace cada una
+alter table reservas add column if not exists personas int not null default 1 check (personas between 1 and 4);
+alter table reservas add column if not exists detalle jsonb not null default '[]'::jsonb;
+
 -- ---------- Datos iniciales ------------------------------------------
 
 insert into ajustes (id) values (1) on conflict do nothing;
@@ -118,23 +122,45 @@ language sql stable as $$
   where r.fecha between p_desde and p_hasta and r.estado = 'confirmada';
 $$;
 
-create or replace function crear_reserva(
-  p_servicio_id int, p_fecha date, p_hora time,
+-- Reserva para una o varias personas (hasta 4), en horas seguidas.
+-- p_items: [{"id": <servicio>, "cantidad": <personas>}, ...]
+create or replace function crear_reserva_grupo(
+  p_items json, p_fecha date, p_hora time,
   p_nombre text, p_telefono text, p_email text default ''
 ) returns json
 language plpgsql as $$
 declare
-  a ajustes; s servicios; h horario;
-  v_fin time; v_codigo text; v_token uuid;
+  a ajustes; h horario; it record; s servicios;
+  v_dur int := 0; v_precio int := 0; v_personas int := 0; v_primero int;
+  v_nombres text[] := '{}'; v_detalle jsonb := '[]'::jsonb;
+  v_fin time; v_codigo text; v_token uuid; v_resumen text;
 begin
   select * into a from ajustes where id = 1;
-  select * into s from servicios where id = p_servicio_id and activo;
-  if not found then raise exception 'El servicio no está disponible.'; end if;
+  if p_items is null or json_typeof(p_items) <> 'array' or json_array_length(p_items) = 0 then
+    raise exception 'Elige al menos un servicio.';
+  end if;
+  for it in select (e->>'id')::int as id, greatest(coalesce((e->>'cantidad')::int, 1), 0) as cant
+            from json_array_elements(p_items) e loop
+    continue when it.cant = 0;
+    select * into s from servicios where id = it.id and activo;
+    if not found then raise exception 'Uno de los servicios ya no está disponible.'; end if;
+    v_primero := coalesce(v_primero, s.id);
+    v_personas := v_personas + it.cant;
+    v_dur := v_dur + s.duracion_min * it.cant;
+    v_precio := v_precio + s.precio * it.cant;
+    v_nombres := v_nombres || (case when it.cant > 1 then it.cant || '× ' else '' end || s.nombre);
+    v_detalle := v_detalle || jsonb_build_object('servicio_id', s.id, 'nombre', s.nombre, 'cantidad', it.cant,
+                                                 'duracion_min', s.duracion_min, 'precio', s.precio);
+  end loop;
+  if v_personas = 0 then raise exception 'Elige al menos un servicio.'; end if;
+  if v_personas > 4 then raise exception 'Se puede reservar para máximo 4 personas a la vez.'; end if;
+  v_resumen := array_to_string(v_nombres, ' · ');
+
   if length(trim(coalesce(p_nombre,''))) < 2 then raise exception 'Ingresa tu nombre.'; end if;
   if length(tel_norm(p_telefono)) < 8 then raise exception 'Ingresa un teléfono válido.'; end if;
 
-  v_fin := p_hora + make_interval(mins => s.duracion_min);
-  if v_fin <= p_hora then raise exception 'El servicio excede el horario del día.'; end if;
+  v_fin := p_hora + make_interval(mins => v_dur);
+  if v_dur >= 24 * 60 or v_fin <= p_hora then raise exception 'Los servicios exceden el horario del día.'; end if;
   if (p_fecha + p_hora) < ahora_cl() + make_interval(mins => a.anticipacion_min) then
     raise exception 'Esa hora ya no está disponible (se requiere % minutos de anticipación).', a.anticipacion_min;
   end if;
@@ -164,7 +190,7 @@ begin
     raise exception 'Alguien acaba de tomar esa hora. Elige otra, por favor.';
   end if;
 
-  -- Máximo 2 horas futuras reservadas por internet con el mismo teléfono
+  -- Máximo 2 reservas futuras por internet con el mismo teléfono
   if (select count(*) from reservas r where tel_norm(r.cliente_telefono) = tel_norm(p_telefono)
       and r.origen = 'web' and r.estado = 'confirmada' and (r.fecha + r.hora_inicio) >= ahora_cl()) >= 2 then
     raise exception 'Ya tienes 2 horas reservadas. Si necesitas otra, escríbenos por WhatsApp.';
@@ -176,14 +202,25 @@ begin
   end loop;
 
   insert into reservas (codigo, servicio_id, servicio_nombre, precio, fecha, hora_inicio, hora_fin,
-                        cliente_nombre, cliente_telefono, cliente_email, estado)
-  values (v_codigo, s.id, s.nombre, s.precio, p_fecha, p_hora, v_fin,
-          trim(p_nombre), trim(p_telefono), trim(coalesce(p_email,'')), 'confirmada')
+                        cliente_nombre, cliente_telefono, cliente_email, estado, personas, detalle)
+  values (v_codigo, v_primero, v_resumen, v_precio, p_fecha, p_hora, v_fin,
+          trim(p_nombre), trim(p_telefono), trim(coalesce(p_email,'')), 'confirmada', v_personas, v_detalle)
   returning token into v_token;
 
-  return json_build_object('codigo', v_codigo, 'token', v_token, 'precio', s.precio, 'servicio', s.nombre,
+  return json_build_object('codigo', v_codigo, 'token', v_token, 'precio', v_precio, 'servicio', v_resumen,
+                           'personas', v_personas, 'detalle', v_detalle,
                            'fecha', p_fecha, 'hora_inicio', p_hora, 'hora_fin', v_fin, 'estado', 'confirmada');
 end $$;
+
+-- Reserva para una persona (se mantiene por compatibilidad)
+create or replace function crear_reserva(
+  p_servicio_id int, p_fecha date, p_hora time,
+  p_nombre text, p_telefono text, p_email text default ''
+) returns json
+language sql as $$
+  select crear_reserva_grupo(json_build_array(json_build_object('id', p_servicio_id, 'cantidad', 1)),
+                             p_fecha, p_hora, p_nombre, p_telefono, p_email);
+$$;
 
 create or replace function consultar_reserva(p_codigo text, p_telefono text)
 returns json
@@ -191,7 +228,7 @@ language sql stable as $$
   select json_build_object(
     'codigo', codigo, 'servicio', servicio_nombre, 'precio', precio,
     'fecha', fecha, 'hora_inicio', hora_inicio, 'hora_fin', hora_fin,
-    'cliente_nombre', cliente_nombre, 'estado', estado, 'token', token,
+    'cliente_nombre', cliente_nombre, 'estado', estado, 'token', token, 'personas', personas, 'detalle', detalle,
     'puede_cancelar', (estado = 'confirmada' and (fecha + hora_inicio) > ahora_cl()))
   from reservas
   where codigo = upper(trim(p_codigo)) and tel_norm(cliente_telefono) = tel_norm(p_telefono);
@@ -204,7 +241,7 @@ language sql stable as $$
   select json_build_object(
     'codigo', codigo, 'servicio', servicio_nombre, 'precio', precio,
     'fecha', fecha, 'hora_inicio', hora_inicio, 'hora_fin', hora_fin,
-    'cliente_nombre', cliente_nombre, 'estado', estado, 'token', token,
+    'cliente_nombre', cliente_nombre, 'estado', estado, 'token', token, 'personas', personas, 'detalle', detalle,
     'puede_cancelar', (estado = 'confirmada' and (fecha + hora_inicio) > ahora_cl()))
   from reservas where token = p_token;
 $$;

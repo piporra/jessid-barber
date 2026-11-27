@@ -83,6 +83,7 @@
     .tl .reserva .btns .btn { padding: 6px 9px; font-size: .78rem; }
     .tl .reserva.ahora { box-shadow: 0 0 0 2px var(--rojo); }
     .tl-cancel { margin-top: 18px; }
+    .personas { color: var(--rojo); }
     .tl-cancel h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--suave); }
     .modal-fondo { position: fixed; inset: 0; background: rgba(34,28,24,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
     .modal { background: var(--papel); border-radius: 16px; padding: 22px; width: 100%; max-width: 460px; max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
@@ -295,7 +296,7 @@
         <div class="hr">${U.hhmm(r.hora_inicio)}<small>${U.hhmm(r.hora_fin)}</small></div>
         <div class="info">
           <div class="n">${U.esc(r.cliente_nombre)}</div>
-          <div class="s">${U.esc(r.servicio_nombre)}${conFecha ? ' · ' + U.fechaLarga(r.fecha) : ''}</div>
+          <div class="s">${r.personas > 1 ? `<b class="personas">${r.personas} personas</b> · ` : ''}${U.esc(r.servicio_nombre)}${conFecha ? ' · ' + U.fechaLarga(r.fecha) : ''}</div>
           <div class="c">${tel}${r.cliente_email ? ' · ' + U.esc(r.cliente_email) : ''} · Código <b>${U.esc(r.codigo)}</b>${r.origen === 'admin' ? ' · manual' : ''}</div>
           ${r.nota_admin ? `<div class="nota">${U.esc(r.nota_admin)}</div>` : ''}
         </div>
@@ -309,7 +310,7 @@
       const local = S.ajustes.nombre + (S.ajustes.direccion ? ' (' + S.ajustes.direccion + ')' : '');
       return U.linkWhatsapp(r.cliente_telefono,
         `Hola ${r.cliente_nombre.split(' ')[0]}, tu hora quedó confirmada ✅\n\n` +
-        `${r.servicio_nombre}\n${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}\n${local}\nCódigo: ${r.codigo}\n\n¡Te esperamos!` +
+        `${r.personas > 1 ? r.personas + ' personas: ' : ''}${r.servicio_nombre}\n${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}\n${local}\nCódigo: ${r.codigo}\n\n¡Te esperamos!` +
         (r.token ? `\n\nSi no puedes venir, cancela tu hora aquí:\n${location.origin}/?cancelar=${r.token}` : ''));
     }
 

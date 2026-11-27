@@ -4,6 +4,7 @@ import { q, responder, mensajeError, leerCuerpo } from './_lib.js';
 const FUNCIONES = {
   horas_ocupadas:    ['p_desde', 'p_hasta'],
   crear_reserva:     ['p_servicio_id', 'p_fecha', 'p_hora', 'p_nombre', 'p_telefono', 'p_email'],
+  crear_reserva_grupo: ['p_items', 'p_fecha', 'p_hora', 'p_nombre', 'p_telefono', 'p_email'],
   consultar_reserva: ['p_codigo', 'p_telefono'],
   cancelar_reserva:  ['p_codigo', 'p_telefono'],
   reserva_por_token: ['p_token'],
@@ -22,7 +23,9 @@ export default async function handler(req, res) {
       return fn === 'reserva_por_token' ? responder(res, 200, { data: null }) : responder(res, 400, { error: 'El link de cancelación no es válido.' });
     }
     const nombres = permitidos.filter(k => args[k] !== undefined && args[k] !== null);
-    const valores = nombres.map(k => String(args[k]).slice(0, 200));
+    const valores = nombres.map(k => k === 'p_items'
+      ? (typeof args[k] === 'string' ? args[k] : JSON.stringify(args[k])).slice(0, 2000)
+      : String(args[k]).slice(0, 200));
     const lista = nombres.map((k, i) => `${k} => $${i + 1}`).join(', ');
     const texto = DEVUELVE_FILAS.has(fn)
       ? `select coalesce(json_agg(t), '[]'::json) as j from ${fn}(${lista}) t`

@@ -8,7 +8,7 @@ const TABLAS = {
   horario:  { pk: 'dia', publica: true, cols: ['dia', 'abierto', 'apertura', 'cierre', 'colacion_inicio', 'colacion_fin'] },
   bloqueos: { pk: 'id',  publica: true, cols: ['id', 'fecha', 'hora_inicio', 'hora_fin', 'motivo'] },
   reservas: { pk: 'id',  publica: false, cols: ['id', 'codigo', 'servicio_id', 'servicio_nombre', 'precio', 'fecha', 'hora_inicio', 'hora_fin',
-    'cliente_nombre', 'cliente_telefono', 'cliente_email', 'estado', 'nota_admin', 'origen', 'creado_en', 'token'] }
+    'cliente_nombre', 'cliente_telefono', 'cliente_email', 'estado', 'nota_admin', 'origen', 'creado_en', 'token', 'personas', 'detalle'] }
 };
 const OPS = { eq: '=', gte: '>=', lte: '<=' };
 const id = (c) => '"' + c + '"';

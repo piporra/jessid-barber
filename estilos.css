@@ -55,16 +55,25 @@ a { color: var(--acento-2); }
 /* Servicios */
 .servicios { display: grid; gap: 10px; }
 .servicio {
-  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
-  background: #fff; border: 1.5px solid var(--linea); border-radius: 12px; padding: 14px 16px; transition: border-color .15s, background .15s;
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: #fff; border: 1.5px solid var(--linea); border-radius: 12px; padding: 12px 12px 12px 16px; transition: border-color .15s, background .15s;
 }
-.servicio:hover { border-color: #9fb0e6; }
 .servicio.sel { border-color: var(--acento); background: var(--acento-claro); }
+.servicio .cuerpo { flex: 1; min-width: 0; cursor: pointer; }
 .servicio .nom { font-weight: 600; }
 .servicio .desc { color: var(--suave); font-size: .88rem; }
-.servicio .meta { margin-left: auto; text-align: right; white-space: nowrap; }
-.servicio .precio { font-weight: 700; color: var(--rojo); }
-.servicio .dur { color: var(--suave); font-size: .85rem; }
+.servicio .cant { display: flex; align-items: center; gap: 8px; flex: none; }
+.servicio .cant b { min-width: 18px; text-align: center; font-size: 1.05rem; }
+.servicio .cant button { border: 1.5px solid var(--linea); background: #fff; border-radius: 10px; height: 40px; font-weight: 700; cursor: pointer; color: var(--tinta); }
+.servicio .cant .menos, .servicio .cant .mas { width: 40px; font-size: 1.2rem; line-height: 1; }
+.servicio .cant .mas { border-color: var(--azul); color: var(--azul); }
+.servicio .cant .agregar { padding: 0 14px; color: var(--azul); border-color: #c5d1f4; }
+.servicio .cant button:disabled { opacity: .35; cursor: not-allowed; }
+.carrito { position: sticky; bottom: 10px; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--tinta); color: #fff; border-radius: 14px; padding: 10px 10px 10px 16px; box-shadow: 0 8px 24px rgba(18, 26, 51, .25); }
+.carrito .btn { background: var(--rojo); }
+.carrito .btn:hover { background: var(--rojo-2); }
+.carrito .max { font-size: .78rem; opacity: .8; }
 
 /* Días */
 .dias { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; scroll-snap-type: x mandatory; scrollbar-width: thin; }

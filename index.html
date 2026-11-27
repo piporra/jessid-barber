@@ -51,8 +51,12 @@
     <!-- Paso 1: servicio -->
     <section id="paso1" class="tarjeta oculto">
       <h2>¿Qué te quieres hacer?</h2>
-      <p class="ayuda">Elige un servicio</p>
+      <p class="ayuda">Elige un servicio. ¿Vienen más personas? Suma uno por cada una (hasta 4) y les buscamos horas seguidas.</p>
       <div class="servicios" id="listaServicios"></div>
+      <div class="carrito oculto" id="barraCarrito">
+        <div id="resumenCarrito"></div>
+        <button class="btn" id="btnPaso1">Continuar</button>
+      </div>
     </section>
 
     <!-- Paso 2: fecha y hora -->
@@ -123,7 +127,8 @@
   (function () {
     const $ = (id) => document.getElementById(id);
     const db = U.cliente();
-    const S = { ajustes: null, servicios: [], horario: [], bloqueos: [], ocupadas: [], servicio: null, fecha: null, hora: null, reserva: null };
+    const S = { ajustes: null, servicios: [], horario: [], bloqueos: [], ocupadas: [], carrito: {}, fecha: null, hora: null, reserva: null };
+    const MAX_PERSONAS = 4;
     const VISTAS = ['paso1', 'paso2', 'paso3', 'paso5', 'consulta', 'vistaCancelar'];
     const CLAVE_HORAS = 'jessid_mis_horas';
 
@@ -168,7 +173,7 @@
       vivas.sort((a, b) => (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio));
       $('listaMisHoras').innerHTML = vivas.map(r => `
         <div class="mi-hora">
-          <div><b>${U.esc(r.servicio)}</b><div class="ayuda" style="margin:2px 0 0">${U.fechaLarga(r.fecha)} · ${U.hhmm(r.hora_inicio)} · Código ${U.esc(r.codigo)}</div></div>
+          <div><b>${U.esc(r.servicio)}</b>${r.personas > 1 ? ` <span class="ayuda">(${r.personas} personas)</span>` : ''}<div class="ayuda" style="margin:2px 0 0">${U.fechaLarga(r.fecha)} · ${U.hhmm(r.hora_inicio)} · Código ${U.esc(r.codigo)}</div></div>
           <button class="btn claro chico" data-token="${U.esc(r.token)}">Cancelar hora</button>
         </div>`).join('');
       $('listaMisHoras').querySelectorAll('[data-token]').forEach(b => botonCancelar(b, async () => {
@@ -254,24 +259,55 @@
       }
     }
 
+    // ---------- Carrito: uno o más servicios (una persona por unidad) ----------
+    function pedido() {
+      const items = S.servicios.filter(x => S.carrito[x.id] > 0).map(x => ({ ...x, cant: S.carrito[x.id] }));
+      const personas = items.reduce((a, x) => a + x.cant, 0);
+      return {
+        items, personas,
+        duracion: items.reduce((a, x) => a + x.duracion_min * x.cant, 0),
+        precio: items.reduce((a, x) => a + x.precio * x.cant, 0),
+        resumen: items.map(x => (x.cant > 1 ? x.cant + '× ' : '') + x.nombre).join(' · ')
+      };
+    }
     function pintarServicios() {
       const cont = $('listaServicios');
       if (!S.servicios.length) { cont.innerHTML = '<div class="vacio">Por ahora no hay servicios disponibles para reservar en línea.</div>'; return; }
-      cont.innerHTML = S.servicios.map(s => `
-        <button class="servicio" data-id="${s.id}">
-          <div><div class="nom">${U.esc(s.nombre)}</div>${s.descripcion ? `<div class="desc">${U.esc(s.descripcion)}</div>` : ''}</div>
-          <div class="meta"><div class="precio">${U.clp(s.precio)}</div><div class="dur">${duracionTxt(s.duracion_min)}</div></div>
-        </button>`).join('');
-      cont.querySelectorAll('.servicio').forEach(b => b.onclick = () => {
-        S.servicio = S.servicios.find(x => x.id === Number(b.dataset.id));
-        S.hora = null;
-        irPaso2();
-      });
+      const p = pedido(), lleno = p.personas >= MAX_PERSONAS;
+      cont.innerHTML = S.servicios.map(s => {
+        const n = S.carrito[s.id] || 0;
+        return `<div class="servicio ${n ? 'sel' : ''}" data-id="${s.id}">
+          <div class="cuerpo" data-sumar="${s.id}"><div class="nom">${U.esc(s.nombre)}</div>
+            <div class="desc">${U.clp(s.precio)} · ${duracionTxt(s.duracion_min)}${s.descripcion ? ' · ' + U.esc(s.descripcion) : ''}</div></div>
+          <div class="cant">${n
+            ? `<button class="menos" data-restar="${s.id}" aria-label="Quitar ${U.esc(s.nombre)}">−</button><b>${n}</b><button class="mas" data-sumar="${s.id}" ${lleno ? 'disabled' : ''} aria-label="Agregar otra persona a ${U.esc(s.nombre)}">+</button>`
+            : `<button class="agregar" data-sumar="${s.id}" ${lleno ? 'disabled' : ''}>Elegir</button>`}</div>
+        </div>`;
+      }).join('');
+      const bar = $('barraCarrito');
+      bar.classList.toggle('oculto', !p.personas);
+      $('resumenCarrito').innerHTML = p.personas
+        ? `<b>${p.personas} ${p.personas === 1 ? 'persona' : 'personas'}</b> · ${duracionTxt(p.duracion)} · ${U.clp(p.precio)}${lleno ? '<div class="max">Máximo 4 personas por reserva</div>' : ''}`
+        : '';
     }
+    $('listaServicios').addEventListener('click', (e) => {
+      const mas = e.target.closest('[data-sumar]'), menos = e.target.closest('[data-restar]');
+      if (menos) { const id = menos.dataset.restar; S.carrito[id] = Math.max(0, (S.carrito[id] || 0) - 1); }
+      else if (mas) {
+        const id = mas.dataset.sumar;
+        if (mas.classList.contains('cuerpo') && S.carrito[id]) return;   // tocar el nombre solo elige, no suma más
+        if (pedido().personas >= MAX_PERSONAS) return;
+        S.carrito[id] = (S.carrito[id] || 0) + 1;
+      } else return;
+      S.hora = null;
+      pintarServicios();
+    });
+    $('btnPaso1').onclick = () => { if (pedido().personas) irPaso2(); };
     function duracionTxt(m) { const h = Math.floor(m / 60), r = m % 60; return h ? `${h} h${r ? ' ' + r + ' min' : ''}` : `${m} min`; }
 
     async function irPaso2() {
-      $('servicioElegido').textContent = `${S.servicio.nombre} · ${duracionTxt(S.servicio.duracion_min)} · ${U.clp(S.servicio.precio)}`;
+      const p = pedido();
+      $('servicioElegido').textContent = `${p.personas > 1 ? p.personas + ' personas · ' : ''}${p.resumen} · ${duracionTxt(p.duracion)} · ${U.clp(p.precio)}`;
       mostrar('paso2');
       await refrescarOcupadas();
       pintarDias();
@@ -284,7 +320,7 @@
     }
 
     function horasDe(fecha) {
-      return U.horasDisponibles({ fecha, duracion: S.servicio.duracion_min, horario: S.horario, bloqueos: S.bloqueos, ocupadas: S.ocupadas, ajustes: S.ajustes });
+      return U.horasDisponibles({ fecha, duracion: pedido().duracion, horario: S.horario, bloqueos: S.bloqueos, ocupadas: S.ocupadas, ajustes: S.ajustes });
     }
 
     function pintarDias() {
@@ -314,15 +350,17 @@
     }
 
     function resumenHTML(r) {
-      return `<div class="fila"><span>Servicio</span><span>${U.esc(r.servicio)}</span></div>
+      return (r.personas > 1 ? `<div class="fila"><span>Personas</span><span>${r.personas}</span></div>` : '') +
+        `<div class="fila"><span>${r.personas > 1 ? 'Servicios' : 'Servicio'}</span><span>${U.esc(r.servicio)}</span></div>
         <div class="fila"><span>Día</span><span>${U.fechaLarga(r.fecha)}</span></div>
         <div class="fila"><span>Hora</span><span>${U.hhmm(r.hora_inicio)}${r.hora_fin ? ' – ' + U.hhmm(r.hora_fin) : ''}</span></div>
         <div class="fila total"><span>Total</span><span>${U.clp(r.precio)}</span></div>`;
     }
 
     $('btnPaso2').onclick = () => {
-      $('resumen3').innerHTML = resumenHTML({ servicio: S.servicio.nombre, fecha: S.fecha, hora_inicio: S.hora,
-        hora_fin: U.aHora(U.aMin(S.hora) + S.servicio.duracion_min), precio: S.servicio.precio });
+      const p = pedido();
+      $('resumen3').innerHTML = resumenHTML({ servicio: p.resumen, personas: p.personas, fecha: S.fecha, hora_inicio: S.hora,
+        hora_fin: U.aHora(U.aMin(S.hora) + p.duracion), precio: p.precio });
       error($('error3'), '');
       mostrar('paso3');
       setTimeout(() => $('inNombre').focus(), 300);
@@ -334,8 +372,8 @@
       if (U.soloDigitos(telefono).length < 8) return error($('error3'), 'Ingresa un teléfono válido.');
       if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return error($('error3'), 'Revisa el correo.');
       const btn = $('btnReservar'); btn.disabled = true; btn.textContent = 'Reservando…';
-      const { data, error: e } = await db.rpc('crear_reserva', {
-        p_servicio_id: S.servicio.id, p_fecha: S.fecha, p_hora: S.hora, p_nombre: nombre, p_telefono: telefono, p_email: email
+      const { data, error: e } = await db.rpc('crear_reserva_grupo', {
+        p_items: JSON.stringify(pedido().items.map(x => ({ id: x.id, cantidad: x.cant }))), p_fecha: S.fecha, p_hora: S.hora, p_nombre: nombre, p_telefono: telefono, p_email: email
       });
       btn.disabled = false; btn.textContent = 'Reservar hora';
       if (e) {
@@ -355,7 +393,7 @@
         (S.ajustes.direccion ? `<div class="fila" style="margin-top:6px"><span>Dirección</span><span><a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(S.ajustes.direccion)}">${U.esc(S.ajustes.direccion)}</a></span></div>` : '');
       const wsp = S.ajustes.whatsapp;
       $('btnWspExito').classList.toggle('oculto', !wsp);
-      if (wsp) $('btnWspExito').href = U.linkWhatsapp(wsp, `Hola, reservé ${r.servicio} el ${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}. Mi código es ${r.codigo}.`);
+      if (wsp) $('btnWspExito').href = U.linkWhatsapp(wsp, `Hola, reservé ${r.personas > 1 ? 'para ' + r.personas + ' personas (' + r.servicio + ')' : r.servicio} el ${U.fechaLarga(r.fecha)} a las ${U.hhmm(r.hora_inicio)}. Mi código es ${r.codigo}.`);
       mostrar('paso5');
     }
 
@@ -364,7 +402,7 @@
       const n = b.dataset.volver;
       if (n === '2') { mostrar('paso2'); pintarDias(); } else mostrar('paso' + n);
     });
-    $('btnNueva').onclick = () => { S.servicio = S.fecha = S.hora = S.reserva = null; mostrar('paso1'); pintarMisHoras(); };
+    $('btnNueva').onclick = () => { S.carrito = {}; S.fecha = S.hora = S.reserva = null; pintarServicios(); mostrar('paso1'); pintarMisHoras(); };
 
     // Consulta
     $('lnkConsulta').onclick = (ev) => { ev.preventDefault(); $('resultadoConsulta').innerHTML = ''; error($('errorConsulta'), ''); mostrar('consulta'); };
